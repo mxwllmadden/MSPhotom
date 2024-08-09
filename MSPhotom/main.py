@@ -52,6 +52,8 @@ class MSPApp:
             command=self.load_data)
 
         self.refresh_data_view()
+    
+    def run(self):
         self.view.mainloop()
 
     def get_image_directory(self):
@@ -291,7 +293,7 @@ class MSPApp:
                                           title='Load Data')
         if file is not None:
             manage = DataManager(self.data)
-            self.data = manage.load(file)
+            self.data = MSPData(**manage.load(file).__dict__)
         self.unpack_params_from_data()
         self.set_state_based_on_data()
         
@@ -299,7 +301,7 @@ class MSPApp:
         loaded_data = self.data.__dict__
         loaded_data['animal_start'] = 0
         loaded_data['animal_end'] = 100
-        if 'img_date_range' in loaded_data.keys():
+        if loaded_data['img_date_range'] is not None:
             loaded_data['date_start'] = loaded_data['img_date_range'][0]
             loaded_data['date_end'] = loaded_data['img_date_range'][1]
         corresponding_params = {'target_directory' : self.view.image_tab.topdirectory,
@@ -314,13 +316,15 @@ class MSPApp:
                                 }
         for key, param in corresponding_params.items():
             if key in loaded_data.keys():
-                param.set(loaded_data[key])
-                continue
+                if loaded_data[key] is not None:
+                    param.set(loaded_data[key])
+                    continue
             param.set('')
         
         if 'roi_names' in loaded_data.keys():
-            for roi, strvar in zip(loaded_data['roi_names'], self.view.image_param_tab.roi_names):
-                strvar.set(roi)
+            if loaded_data['roi_names'] is not None:
+                for roi, strvar in zip(loaded_data['roi_names'], self.view.image_param_tab.roi_names):
+                    strvar.set(roi)
         
     def set_state_based_on_data(self):
         """
@@ -412,4 +416,4 @@ def numtodate(numcode: int):
 
 
 if __name__ == '__main__':
-    MSPApp()
+    MSPApp().run()

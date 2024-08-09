@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
+ # -*- coding: utf-8 -*-
 """
 Contains Dataclass that contains all photometry data and parameters and related
 functions for saving/accessing or general utilities for dealing with that data.
 """
 from typing import List, Tuple, Dict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 from scipy.io import savemat, loadmat
 from datetime import datetime
@@ -15,11 +15,14 @@ import pickle
 class MSPData:
     # General Data
     data_creation_date: str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logs: list = field(default_factory=lambda: [])
 
     # Image Processing and Aquisition - Section 1, Input Parameters
     # Human Inputs
     target_directory: str = None
     img_date_range: Tuple[str, str] = None
+    date_start : str = None
+    date_end : str = None
     img_prefix: str = None
     img_per_trial_per_channel: int = None
     num_interpolated_channels: int = None
@@ -29,6 +32,8 @@ class MSPData:
     animal_names: List[str] = None
     animal_basename: str = None
     run_path_list: List[str] = None
+    animal_start: str = None
+    animal_end: str = None
 
     # Image Processing and Aquisition - Section 2, Fiber Masking
     fiber_labels: List[str] = None
@@ -38,6 +43,9 @@ class MSPData:
 
     traces_raw_by_run_reg: Dict[str, Dict[str, np.ndarray]] = None
     traces_by_run_signal_trial: Dict[str, Dict[str, np.ndarray]] = None
+    
+    def log(self, msg : str):
+        self.logs.append(f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} - {msg}')
 
 
 class DataManager:

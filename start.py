@@ -8,4 +8,4 @@ Created on Tue Jul  2 15:09:43 2024
 import MSPhotom
 
 
-MSPhotom.main.MSPApp()
+MSPhotom.main.MSPApp().run()

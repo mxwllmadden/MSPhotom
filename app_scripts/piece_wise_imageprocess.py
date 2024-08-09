@@ -13,7 +13,7 @@ import time
 def main():
     reporter = {'App' : None,
                 'Data' : None}
-    app_thread = threading.Thread(target=MSPhotom_Automated,
+    app_thread = threading.Thread(target=MSPhotom_Automated.run,
                                   args=(reporter,),
                                   daemon=True)
     app_thread.start()
@@ -50,13 +50,14 @@ def main():
         time.sleep(5)
         if data.traces_by_run_signal_trial is not None:
             break
-    data.run_path_list = [*data.run_path_list, *old_runs]
+    data.run_path_list = [*old_runs, *data.run_path_list]
     data.traces_raw_by_run_reg = {**old_data.traces_raw_by_run_reg,
                                       **data.traces_raw_by_run_reg}
     data.traces_by_run_signal_trial = {**old_data.traces_by_run_signal_trial,
                                       **data.traces_by_run_signal_trial}
     
     print('Processing has finished. Please manually save in a new location')
+    return data
     
 class MSPhotom_Automated(msp.MSPApp):
     def __init__(self, reporter : list):
@@ -82,4 +83,5 @@ def waitfor(value, index):
     return value[index]
 
 if __name__ == '__main__':
-    main()
+    data = main()
+    

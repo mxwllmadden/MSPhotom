@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Aug  5 15:55:40 2024
+Created on Wed Aug  7 10:00:19 2024
 
 @author: mbmad
 """
 
 import MSPhotom as msp
 import threading
-import copy
 import time
 
 def main():
@@ -19,10 +18,8 @@ def main():
     app_thread.start()
     
     print('Waiting for App to load')
-    app = waitfor(reporter,'App')
-    print('Please load the pckl data file you would like to update')
-    data = waitfor(reporter,'Data')
-    return data
+    app : MSPhotom_Automated = waitfor(reporter,'App')
+    return app
     
 class MSPhotom_Automated(msp.MSPApp):
     def __init__(self, reporter : list):
@@ -45,4 +42,4 @@ def waitfor(value, index):
     return value[index]
 
 if __name__ == '__main__':
-    data = main()
+    app = main()
