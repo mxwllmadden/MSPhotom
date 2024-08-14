@@ -10,16 +10,14 @@ class DataTab(tk.Frame):
     def __init__(self, container):
         super().__init__(container)
         self.load_data_but = tk.Button(self, text='Load PICKLE')
-        self.load_mat_but = tk.Button(self, text='Load MAT')
         self.refresh_but = tk.Button(self, text='Refresh')
         self.sv_data_but = tk.Button(self, text='to PICKLE')
-        self.sv_mat_but = tk.Button(self, text='to MAT')
+        self.sv_h5_but = tk.Button(self, text='to h5(for MAT)')
 
-        self.load_data_but.grid(column=0, row=0, sticky='s')
-        self.load_mat_but.grid(column=1, row=0, sticky='s')
-        self.refresh_but.grid(column=2, row=0, sticky='s')
-        self.sv_data_but.grid(column=3, row=0, sticky='s')
-        self.sv_mat_but.grid(column=4, row=0, sticky='s')
+        self.load_data_but.grid(column=0, row=0, sticky='s', padx=10)
+        self.refresh_but.grid(column=1, row=0, sticky='s', padx=10)
+        self.sv_data_but.grid(column=2, row=0, sticky='s', padx=10)
+        self.sv_h5_but.grid(column=3, row=0, sticky='s', padx=20)
         
         for ind in range(5):
             self.columnconfigure(ind, minsize=100)

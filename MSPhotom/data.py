@@ -6,9 +6,9 @@ functions for saving/accessing or general utilities for dealing with that data.
 from typing import List, Tuple, Dict
 from dataclasses import dataclass, field
 import numpy as np
-from scipy.io import savemat, loadmat
 from datetime import datetime
 import pickle
+import h5py
 
 
 @dataclass
@@ -27,7 +27,8 @@ class MSPData:
     img_per_trial_per_channel: int = None
     num_interpolated_channels: int = None
     roi_names: List[str] = None
-
+    num_regions: int = None
+    num_runs: int = None
     # File/Trace/Animal Information
     animal_names: List[str] = None
     animal_basename: str = None
@@ -47,6 +48,11 @@ class MSPData:
     def log(self, msg : str):
         self.logs.append(f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} - {msg}')
 
+    bin_size: int = None
+
+    corrsig_reg_results: Dict[str, Dict[str, np.ndarray]] = None
+    regressed_traces_by_run_signal_trial: Dict[str, Dict[str, np.ndarray]] = None
+
 
 class DataManager:
     def __init__(self, data):
@@ -61,10 +67,32 @@ class DataManager:
         with open(file, 'rb') as f:
             return pickle.load(f)
         return
-            
 
-    def saveto_matlab(self, path):
-        savemat(path, self.data.__dict__)
+    def saveto_h5(self, path):
+        """
+        Save specific attributes from the dataclass instance stored in `self.data` to an HDF5 file.
+        """
+        traces = self.data.traces_by_run_signal_trial
+        regressed_traces = self.data.regressed_traces_by_run_signal_trial
 
-    def loadfrom_matlab(self, path):
-        pass
+        def write_dict_to_hdf5(group, d):
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    sub_group = group.create_group(key)
+                    write_dict_to_hdf5(sub_group, value)
+                elif isinstance(value, list):
+                    group.create_dataset(key, data=value)
+                elif isinstance(value, np.ndarray):
+                    group.create_dataset(key, data=value)
+                else:
+                    group.attrs[key] = value
+
+        with h5py.File(path, 'w') as hdf5_file:
+            if traces:
+                traces_group = hdf5_file.create_group('traces_by_run_signal_trial')
+                write_dict_to_hdf5(traces_group, traces)
+            if regressed_traces:
+                regressed_traces_group = hdf5_file.create_group('regressed_traces_by_run_signal_trial')
+                write_dict_to_hdf5(regressed_traces_group, regressed_traces)
+
+

@@ -5,8 +5,8 @@ Image Processing related GUI elements
 
 import tkinter as tk
 from tkinter import ttk
-from PIL import ImageTk
 from MSPhotom.gui.generalframes import ParameterWindow
+
 
 class ImageProcessTab(tk.Frame):
     def __init__(self, container):
@@ -31,9 +31,7 @@ class ImageProcessTab(tk.Frame):
         self.processbutton.grid(column=0, row=2,padx=0, pady=(0,10), sticky="se")
         self.reset_button.grid(column=0, row=3,padx=2, pady=(0,10), sticky="se")
         
-        self.regselbutton["state"] = "disabled"
-        self.processbutton["state"] = "disabled"
-        
+
         #String Variables and Defaults
         self.topdirectory = tk.StringVar()
         self.date_start = tk.StringVar()
@@ -135,8 +133,8 @@ class RegionSelection(tk.Frame):
         tk.Label(container, text="Drag and drop the red circle to cover the selected region").place(x = 10, y = 430)
         self.currentregion = tk.StringVar()
         self.currentregion.set("Currently selecting "+self.regions[0])
-        tk.Label(container,textvariable=self.currentregion).place(x=10, y = 470)
-        self.confirmbutton = tk.Button(container,text="CONFIRM REGION")
+        tk.Label(container, textvariable=self.currentregion).place(x=10, y = 470)
+        self.confirmbutton = tk.Button(container, text="CONFIRM REGION")
         self.confirmbutton.place(x = 270, y = 470)
         self.activeregion = 0
         self.regshapelist = [] # List that will contain all the circle selectors marking the image

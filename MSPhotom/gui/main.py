@@ -56,10 +56,35 @@ class AppView:
                     self.image_tab.processbutton,
                     self.image_tab.reset_button
                 ],
-            'IP - Processing' : [],
-            'RG - Ready for Regression' : [],
+            'IP - Processing Images': [],
+            'RG - Processing Done Ready to Input Bin' : [
+                    self.regression_tab.binsizeentry,
+                    self.regression_tab.load_button,
+                    self.regression_tab.reset_button
+            ],
+            'RG - Ready to Regress' :
+                [
+                    self.regression_tab.regress_button,
+                    self.regression_tab.reset_button,
+                    self.image_tab.reset_button
+                ],
             'RG - Regressing' : [],
-            'RG - Done Regressing' : [],
+            'RG - Regression Done Ready to Graph' : [
+                    self.regression_tab.reset_button,
+                    self.regression_tab.reset_graph_button,
+                    self.image_tab.reset_button,
+                    self.regression_tab.run_selector,
+                    self.regression_tab.reg_selector,
+                    self.regression_tab.ch_selector,
+                    self.regression_tab.trial_selector,
+                    self.regression_tab.graph_channel_button,
+                    self.regression_tab.graph_corrsig_button
+                ],
+            'RG - Graphing Done': [
+                    self.regression_tab.reset_button,
+                    self.regression_tab.reset_graph_button,
+                    self.image_tab.reset_button
+                ],
             
         }
         all_state_elements = list(chain(
@@ -81,11 +106,15 @@ class AppView:
                                            text=str(ind),
                                            values=entry
                                            )
+
     def update_state(self, new_state):
         if new_state == 'IP - Parameter Entry':
             self.updatefiletreedisplay([])
+        if new_state == 'RG - Regression Done Ready to Graph' or new_state == 'IP - Parameter Entry':
+            for widget in self.regression_tab.graphcanvas.winfo_children():
+                widget.destroy()
         self._update_state(new_state)
-    
+
     def _update_state(self, new_state):
         if new_state not in self.statesets.keys():
             raise TypeError(
@@ -95,12 +124,12 @@ class AppView:
         for child in self.statesets[new_state]:
             child.config(state = 'normal')
         self.state = new_state
-        
+
     def popout_regsel(self, reg_names, img):
         top_lev = tk.Toplevel(self.root)
         self.regsel = RegionSelection(top_lev, reg_names, img)
         return top_lev
-        
+
 
 if __name__ == '__main__':
     app = AppView()

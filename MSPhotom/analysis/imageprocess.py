@@ -7,7 +7,6 @@ import os
 import numpy as np
 from PIL import Image
 import time
-import re
 
 def process_main(data,
                  controller=None):
@@ -28,7 +27,7 @@ def process_main(data,
         # Update view if needed
         if controller is not None:
             controller.view.image_tab.longprog['value'] = (ind/run_path_list_len)*100
-            controller.view.image_tab.longprogstat.set(f'Processing run {run_path.split("/")[-2]}/{run_path.split("/")[-1]}')
+            controller.view.image_tab.longprogstat.set(f'Processing run {run_path.split("/")[-1]}')
     
         valid_imgs = get_valid_images(run_path, data.img_prefix)
         if len(valid_imgs) == 0:
@@ -55,24 +54,19 @@ def process_main(data,
         
         traces_by_run_signal_trial[run_path] = {label : trace for label, trace 
                                            in zip(trace_labels, traces)}
-        
+
     data.fiber_masks = {label : mask for label, mask 
                         in zip(data.fiber_labels, fiber_masks)}
     data.traces_raw_by_run_reg = traces_raw_by_run_reg
     data.traces_by_run_signal_trial = traces_by_run_signal_trial
-    runs_names = [f'{run_path.split("/")[-2]}/{run_path.split("/")[-1]}' for run_path in data.run_path_list]
-    data.log('imageprocess finished processing: \n {"\n    ".join(runs_names)}')
+    data.num_runs = len(traces_by_run_signal_trial)
+
     if controller is not None:
-        controller.view.update_state('RG - Ready for Regression')
+        controller.view.update_state('RG - Processing Done Ready to Input Bin')
         controller.view.image_tab.longprog['value'] = 100
         controller.view.image_tab.runprog['value'] = 100
         controller.view.image_tab.shortprogstat.set('All Images Processed')
         controller.view.image_tab.longprogstat.set('All Runs Processed')
-        from MSPhotom.data import DataManager
-        manage = DataManager(data)
-        manage.save('autosave_data.pkl')
-        
-    
 
 def process_run(valid_imgs, masks, controller = None):
     start_time = time.time()
@@ -98,14 +92,13 @@ def process_run(valid_imgs, masks, controller = None):
             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')
             controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')
     return traces_raw
-        
 
 def get_valid_images(path, prefix):
     img_paths = os.listdir(path)
     img_paths = [path for path in img_paths if path[-4:] == '.tif']
     prefix_len = len(prefix)
     img_paths = [path for path in img_paths if path[:prefix_len] == prefix]
-    img_paths = sorted(img_paths, key = lambda imgnm : int(re.sub('[^0-9]','',imgnm[prefix_len+1:-4])))
+    img_paths = sorted(img_paths, key = lambda imgnm : int(imgnm[prefix_len+1:-4]))
     return [f'{path}/{name}' for name in img_paths]
 
 def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius : int):
@@ -136,9 +129,9 @@ def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius :
     for x in range(sizex):
         for y in range(sizey):
             if ((x-circlex)**2 + (y-circley)**2)**(0.5) <= radius:
-                mask[y,x] = 1
+                mask[x,y] = 1
             else:
-                mask[y,x] = 0
+                mask[x,y] = 0
     return mask
 
 def subtractbackgroundsignal(traces : List[np.ndarray]): 

@@ -5,19 +5,19 @@ Contains Controller Class for the App
 Define all app behavior/events in this class.
 """
 
-
 from tkinter import filedialog
 import os
 from PIL import Image, ImageTk
 import threading
 from typing import List, Tuple
-from matplotlib import pyplot as pp
-import numpy as np
-
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import tkinter as tkk
 from MSPhotom.data import MSPData, DataManager
 from MSPhotom.gui.main import AppView
 from MSPhotom import analysis
-
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+import numpy as np
 
 class MSPApp:
     def __init__(self):
@@ -50,10 +50,23 @@ class MSPApp:
             command=self.save_data)
         self.view.data_tab.load_data_but.config(
             command=self.load_data)
+        self.view.data_tab.sv_h5_but.config(command=self.save_h5)
 
+        self.view.regression_tab.reset_button.config(
+            command=self.reset_regression)
+        self.view.regression_tab.reset_graph_button.config(
+            command=self.reset_graph)
+        self.view.regression_tab.load_button.config(
+            command=self.input_bin)
+        self.view.regression_tab.regress_button.config(
+            command=self.regress_fibers)
+        self.view.regression_tab.graph_corrsig_button.config(
+            command=lambda: self.update_canvas_with_plot(1))
+        self.view.regression_tab.graph_channel_button.config(
+            command=lambda: self.update_canvas_with_plot(2)
+        )
         self.refresh_data_view()
-    
-    def run(self):
+        self.view.update_state('IP - Parameter Entry')
         self.view.mainloop()
 
     def get_image_directory(self):
@@ -84,6 +97,7 @@ class MSPApp:
         img_per_trial_per_channel = self.view.image_param_tab.img_per_trial_per_channel
         num_interpolated_channels = self.view.image_param_tab.num_interpolated_channels
         roi_names = [var.get() for var in self.view.image_param_tab.roi_names]
+        roi_names = [name.replace('_', '') for name in roi_names]
         
         # Check to ensure user input is appropriate
         if not os.path.exists(target_directory):
@@ -140,12 +154,12 @@ class MSPApp:
         self.data.img_date_range: Tuple[str, str] = (date_start.get(),
                                                      date_end.get())
         self.data.animal_names: List[str] = animal_names
-        self.data.animal_basename: str = ani_prefix
         self.data.run_path_list: List[str] = run_paths
         self.data.img_prefix: str = img_prefix
         self.data.img_per_trial_per_channel: int = img_per_trial_per_channel
         self.data.num_interpolated_channels: int = num_interpolated_channels
         self.data.roi_names: List[str] = roi_names
+
 
     def region_selection(self):
         """
@@ -179,18 +193,8 @@ class MSPApp:
         frpath = self.data.run_path_list[0]
         imprefix = self.data.img_prefix
         impath = f'{frpath}/{imprefix}_2.tif'
-        impath2 = f'{frpath}/{imprefix}_1.tif'
-        cmap = pp.get_cmap('nipy_spectral')
         with Image.open(impath) as im:
-            np_im = np.asarray(im)
-        with Image.open(impath2) as im2:
-            np_im2 = np.asarray(im2)
-        np_im = np_im2 / np_im
-        np_im = np_im - np_im.min()
-        np_im = np_im / np_im.max()
-        im_array : np.ndarray = np.asarray(cmap(np_im))*255
-        im_array : np.ndarray = im_array.astype(np.uint8)[:,:,:3]
-        return ImageTk.PhotoImage(Image.fromarray(im_array, mode='RGB'))
+            return ImageTk.PhotoImage(im)
 
     def region_selection_prematureclose(self, event):
         """
@@ -243,7 +247,7 @@ class MSPApp:
         Update view and start image processing in another thread
         """
         # Update View
-        self.view.update_state('IP - Processing')
+        self.view.update_state('IP - Processing Images')
         # Create and initialize the thread for image loading/processing
         pross_thread = threading.Thread(target=analysis.imageprocess.process_main,
                                         args=(self.data,
@@ -257,7 +261,6 @@ class MSPApp:
         """
         # Update View
         self.view.update_state('IP - Parameter Entry')
-
         # Recreate Data
         self.data = MSPData()
 
@@ -280,6 +283,14 @@ class MSPApp:
             manage = DataManager(self.data)
             manage.save(file)
 
+    def save_h5(self):
+        file = filedialog.asksaveasfilename(defaultextension='.h5',
+                                            filetypes=[('HDF5 files', '*.h5')],
+                                            title='Save HDF5 File')
+        if file is not None:
+            manage = DataManager(self.data)
+            manage.saveto_h5(file)
+
     def load_data(self):
         """
         Load data from pickle file
@@ -294,38 +305,119 @@ class MSPApp:
         if file is not None:
             manage = DataManager(self.data)
             self.data = MSPData(**manage.load(file).__dict__)
-        self.unpack_params_from_data()
         self.set_state_based_on_data()
-        
-    def unpack_params_from_data(self):
-        loaded_data = self.data.__dict__
-        loaded_data['animal_start'] = 0
-        loaded_data['animal_end'] = 100
-        if loaded_data['img_date_range'] is not None:
-            loaded_data['date_start'] = loaded_data['img_date_range'][0]
-            loaded_data['date_end'] = loaded_data['img_date_range'][1]
-        corresponding_params = {'target_directory' : self.view.image_tab.topdirectory,
-                                'date_start' : self.view.image_tab.date_start,
-                                'date_end':self.view.image_tab.date_end,
-                                'animal_prefix' : self.view.image_tab.ani_prefix,
-                                'animal_start' : self.view.image_tab.ani_start,
-                                'animal_end' : self.view.image_tab.ani_end,
-                                'img_prefix' : self.view.image_param_tab.img_prefix,
-                                'img_per_trial_per_channel' : self.view.image_param_tab.img_per_trial_per_channel,
-                                'num_interpolated_channels' : self.view.image_param_tab.num_interpolated_channels,
-                                }
-        for key, param in corresponding_params.items():
-            if key in loaded_data.keys():
-                if loaded_data[key] is not None:
-                    param.set(loaded_data[key])
-                    continue
-            param.set('')
-        
-        if 'roi_names' in loaded_data.keys():
-            if loaded_data['roi_names'] is not None:
-                for roi, strvar in zip(loaded_data['roi_names'], self.view.image_param_tab.roi_names):
-                    strvar.set(roi)
-        
+        # This logic is here to clear the graph plot is a new pickle file is loaded
+        for widget in self.view.regression_tab.graphcanvas.winfo_children():
+            widget.destroy()
+
+
+    def reset_regression(self):
+        """
+        Remove data object and create new. Update state accordingly.
+        """
+        self.data.bin_size = None
+        self.data.regressed_traces_by_run_signal_trial = None
+        self.view.regression_tab.runprog['value'] = 0
+        self.view.update_state('RG - Processing Done Ready to Input Bin')
+
+    def reset_graph(self):
+        """
+        Remove data object and create new. Update state accordingly.
+        """
+        # Update View
+        self.view.update_state('RG - Regression Done Ready to Graph')
+
+    def input_bin(self):
+        """
+        Updates the bin_size variable to be ready for regression
+        """
+        bin_size = self.view.regression_tab.bin_size.get()
+        if not bin_size.isdigit():
+            bin_size.set('ERROR')
+            return
+        bin_size = int(bin_size)
+        self.data.num_regions = list(filter(None, self.data.roi_names))
+        self.view.regression_tab.num_regs.set(f'{self.data.num_regions}')
+        self.view.regression_tab.num_runs.set(f'{self.data.num_runs} Run(s)')
+        self.view.update_state('RG - Ready to Regress')
+        self.data.bin_size: int = bin_size
+
+    def regress_fibers(self):
+        # Update View
+        # in between
+        self.view.update_state('RG - Regressing')
+        # Create and initialize the thread for image loading/processing
+        regress_thread = threading.Thread(target=analysis.regression.regression_main,
+                                        args=(self.data,
+                                              self),
+                                        daemon=True)
+        regress_thread.start()
+        run_options = list(self.data.traces_by_run_signal_trial.keys())
+        reg_options = self.data.roi_names
+        ch_options = [f'ch{n}' for n in range(self.data.num_interpolated_channels)]
+        # print(run_options)
+        self.view.regression_tab.run_selector['values'] = run_options
+        self.view.regression_tab.reg_selector['values'] = reg_options
+        self.view.regression_tab.ch_selector['values'] = ch_options
+        # Set default value
+        self.view.regression_tab.run_selector.set(run_options[0])
+        self.view.regression_tab.ch_selector.set(ch_options[1])
+        self.view.regression_tab.reg_selector.set(reg_options[0])
+
+
+
+    def update_canvas_with_plot(self, mode):
+        """
+        Updates Plot with corrsig regression test figure
+        """
+        # Get the Figure object from the plot function
+        graph_run = self.view.regression_tab.run_select.get()
+        graph_reg = self.view.regression_tab.reg_select.get()
+        graph_ch = self.view.regression_tab.ch_select.get()
+        inputted_trial = self.view.regression_tab.trial_select
+        if not inputted_trial.get().isdigit():
+            inputted_trial.set('ERROR')
+            return
+        graph_trial = int(inputted_trial.get())
+        if mode == 1:
+            trace_key = f'sig_{graph_reg}_{graph_ch}'
+            corrsig_key = f'sig_corrsig_{graph_ch}'
+            trace_data = self.data.traces_by_run_signal_trial[graph_run][trace_key]
+            corrsig_data = self.data.traces_by_run_signal_trial[graph_run][corrsig_key]
+            trial_data_y = trace_data[graph_trial - 1, :]
+            trial_data_x = corrsig_data[graph_trial - 1, :]
+            fig = corrsig_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial)
+        elif mode == 2:
+            trace_key = f'{graph_reg}_{graph_ch}'
+            ch0_key = f'{graph_reg}_ch0'
+            trace_data = self.data.corrsig_reg_results[graph_run][trace_key]
+            ch0_data = self.data.corrsig_reg_results[graph_run][ch0_key]
+            trial_data_y = trace_data[:, graph_trial - 1]
+            trial_data_x = ch0_data[:, graph_trial - 1]
+            fig = channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial)
+        # Set the figure size to fit the canvas
+        fig.set_size_inches(self.view.regression_tab.graphcanvas.winfo_width() / fig.get_dpi(),
+                            self.view.regression_tab.graphcanvas.winfo_height() / fig.get_dpi())
+
+        # Create a FigureCanvasTkAgg object from the Figure with the graphcanvas as master
+        fig.subplots_adjust(left=0.12, right=.95, top=.945, bottom=0.11, wspace=0.4, hspace=0.4)
+        canvas = FigureCanvasTkAgg(fig, master=self.view.regression_tab.graphcanvas)
+        canvas.draw()  # Draw the plot
+
+        # Clear any existing widgets in the graphcanvas
+        self.view.regression_tab.graphcanvas.delete("all")
+
+        # Get the Tkinter widget from the FigureCanvasTkAgg object
+        canvas_widget = canvas.get_tk_widget()
+
+        # Pack the widget into the graphcanvas
+        canvas_widget.pack(fill=tkk.BOTH, expand=True)
+
+        # Ensure the graphcanvas is set to the correct size
+        self.view.regression_tab.graphcanvas.config(width=330, height=330)
+        self.view.update_state('RG - Graphing Done')
+
+
     def set_state_based_on_data(self):
         """
         Based on the stored data in data object, update view.
@@ -347,8 +439,19 @@ class MSPApp:
                                   'fiber_masks',
                                   'traces_raw_by_run_reg',
                                   'traces_by_run_signal_trial')
+        readytoregress = multikey(self.data.__dict__,
+                                  'bin_size')
+        regressiondone = multikey(self.data.__dict__,
+                                  'regressed_traces_by_run_signal_trial')
+
+        if not all(val is None for val in regressiondone):
+            self.view.update_state('RG - Regression Done Ready to Graph')
+            return
+        if not all(val is None for val in readytoregress):
+            self.view.update_state('RG - Ready to Regress')
+            return
         if not all(val is None for val in processingdone):
-            self.view.update_state('RG - Ready for Regression')
+            self.view.update_state('RG - Processing Done Ready to Input Bin')
             return
         if not all(val is None for val in regionselect):
             self.view.update_state('IP - Ready to Process')
@@ -362,8 +465,6 @@ class MSPApp:
 
 def multikey(x, *args):
     """
-    
-
     Parameters
     ----------
     x : dict
@@ -410,10 +511,43 @@ def datetonum(date: str):
     
 def numtodate(numcode: int):
     assert isinstance(numcode, int), 'numtodate accepts integers only'
-    y, d = divmod(numcode,500)
+    y, d = divmod(numcode, 500)
     m, d = divmod(d,40)
     return (str(m).zfill(2)+"-"+str(d).zfill(2)+"-"+str(y).zfill(2))
 
+def corrsig_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial):
+
+    plt.style.use('fivethirtyeight')
+    fig = Figure(figsize=(7, 5))
+    ax = fig.add_subplot(111)
+    ax.plot(np.unique(trial_data_x), np.poly1d(np.polyfit(trial_data_x, trial_data_y, 1))(np.unique(trial_data_x)),  color='red', linewidth=2, zorder=1)
+    ax.scatter(trial_data_x, trial_data_y, zorder=2)
+    ax.set_xlabel('Corrsig-Fiber Values', fontsize=8)
+    ax.set_ylabel(f'{graph_reg}-Fiber Trace Values', fontsize=8)
+    ax.set_title(f'{graph_reg}-Fiber Against Corr-Fiber in {graph_ch}(Trial: {graph_trial})', fontsize=8)
+    ax.tick_params(axis='both', which='major', labelsize=6)
+    ax.tick_params(axis='both', which='minor', labelsize=4)
+
+    return fig
+
+def channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial):
+
+    # plt.scatter(trial_data_x, trial_data_y, label='Data Points')
+    plt.style.use('fivethirtyeight')
+    fig = Figure(figsize=(7, 5))
+    ax = fig.add_subplot(111)
+    ax.plot(np.unique(trial_data_x), np.poly1d(np.polyfit(trial_data_x, trial_data_y, 1))(np.unique(trial_data_x)),  color='red', linewidth=2, zorder=1)
+    ax.scatter(trial_data_x, trial_data_y, zorder=2)
+
+    # Add labels and legend
+    ax.set_xlabel(f'Ch0 {graph_reg}-Fiber Residual Values', fontsize=8)
+    ax.set_ylabel(f'{graph_ch} {graph_reg}-Fiber Residual Values', fontsize=8)
+    ax.set_title(f'{graph_ch} Against ch0 For {graph_reg}-Fiber(Trial: {graph_trial})', fontsize=8)
+    ax.tick_params(axis='both', which='major', labelsize=6)
+    ax.tick_params(axis='both', which='minor', labelsize=4)
+
+    return fig
 
 if __name__ == '__main__':
-    MSPApp().run()
+    MSPApp()
+

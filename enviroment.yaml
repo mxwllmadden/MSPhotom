@@ -1,12 +1,14 @@
 name: photom-data-process2
 channels:
   - conda-forge
+  - anaconda
   - defaults
 dependencies:
   - matplotlib
   - numpy
   - pillow
   - pyinstaller
-  - python>3.11
+  - python=3.11
   - scipy
   - spyder-kernels>=2.5
+  - h5py
