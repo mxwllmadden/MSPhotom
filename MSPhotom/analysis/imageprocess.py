@@ -61,8 +61,9 @@ def process_main(data,
                         in zip(data.fiber_labels, fiber_masks)}
     data.traces_raw_by_run_reg = traces_raw_by_run_reg
     data.traces_by_run_signal_trial = traces_by_run_signal_trial
-    runs_names = [f'{run_path.split("/")[-2]}/{run_path.split("/")[-1]}' for run_path in data.run_path_list]
-    data.log('imageprocess finished processing: \n {"\n".join(runs_names)}')
+    runs_names = "\n    ".join([f'{run_path.split("/")[-2]}/{run_path.split("/")[-1]}' 
+                            for run_path in data.run_path_list])
+    data.log('imageprocess finished processing: \n    {runs_names}')
 
     if controller is not None:
         controller.view.update_state('RG - Processing Done Ready to Input Bin')
