@@ -5,13 +5,14 @@ Contains Controller Class for the App
 Define all app behavior/events in this class.
 """
 
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import os
 from PIL import Image, ImageTk
 import threading
 from typing import List, Tuple
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import tkinter as tkk
+from matplotlib import pyplot as pp
+import tkinter as tk
 from MSPhotom.data import MSPData, DataManager
 from MSPhotom.gui.main import AppView
 from MSPhotom import analysis
@@ -67,6 +68,8 @@ class MSPApp:
         )
         self.refresh_data_view()
         self.view.update_state('IP - Parameter Entry')
+    
+    def run(self):
         self.view.mainloop()
 
     def get_image_directory(self):
@@ -154,17 +157,20 @@ class MSPApp:
         self.data.img_date_range: Tuple[str, str] = (date_start.get(),
                                                      date_end.get())
         self.data.animal_names: List[str] = animal_names
+        self.data.animal_basename: str = ani_prefix
         self.data.run_path_list: List[str] = run_paths
         self.data.img_prefix: str = img_prefix
         self.data.img_per_trial_per_channel: int = img_per_trial_per_channel
         self.data.num_interpolated_channels: int = num_interpolated_channels
         self.data.roi_names: List[str] = roi_names
 
-
     def region_selection(self):
         """
         Generate a popup region selection window and define its behavior.
         """
+        if len(self.data.run_path_list) == 0:
+            messagebox('No Paths Loaded')
+            return
         self.view.update_state('None')
         self.data_regsel = {'ROIs':
                             ['Background Fiber', 'Correction Fiber']
@@ -193,8 +199,18 @@ class MSPApp:
         frpath = self.data.run_path_list[0]
         imprefix = self.data.img_prefix
         impath = f'{frpath}/{imprefix}_2.tif'
+        impath2 = f'{frpath}/{imprefix}_1.tif'
+        cmap = pp.get_cmap('nipy_spectral')
         with Image.open(impath) as im:
-            return ImageTk.PhotoImage(im)
+            np_im = np.asarray(im)
+        with Image.open(impath2) as im2:
+            np_im2 = np.asarray(im2)
+        np_im = np_im2 / np_im
+        np_im = np_im - np_im.min()
+        np_im = np_im / np_im.max()
+        im_array : np.ndarray = np.asarray(cmap(np_im))*255
+        im_array : np.ndarray = im_array.astype(np.uint8)[:,:,:3]
+        return ImageTk.PhotoImage(Image.fromarray(im_array, mode='RGB'))
 
     def region_selection_prematureclose(self, event):
         """
@@ -287,9 +303,10 @@ class MSPApp:
         file = filedialog.asksaveasfilename(defaultextension='.h5',
                                             filetypes=[('HDF5 files', '*.h5')],
                                             title='Save HDF5 File')
-        if file is not None:
-            manage = DataManager(self.data)
-            manage.saveto_h5(file)
+        if file is None:
+            return
+        manage = DataManager(self.data)
+        manage.saveto_h5(file)
 
     def load_data(self):
         """
@@ -302,14 +319,37 @@ class MSPApp:
                                           filetypes=[
                                               ('Python Pickle', '*.pkl')],
                                           title='Load Data')
-        if file is not None:
-            manage = DataManager(self.data)
-            self.data = MSPData(**manage.load(file).__dict__)
+        if file is None:
+            return
+        manage = DataManager(self.data)
+        self.data = MSPData(**manage.load(file).__dict__)
+        self.unpack_params_from_data()
         self.set_state_based_on_data()
         # This logic is here to clear the graph plot is a new pickle file is loaded
         for widget in self.view.regression_tab.graphcanvas.winfo_children():
             widget.destroy()
-
+            
+    def unpack_params_from_data(self):
+        loaded_data = self.data.__dict__.copy()
+        loaded_data['animal_start'] = 0
+        loaded_data['animal_end'] = 100
+        if loaded_data['img_date_range'] is not None:
+            loaded_data['date_start'] = loaded_data['img_date_range'][0]
+            loaded_data['date_end'] = loaded_data['img_date_range'][1]
+        corresponding_params = {'target_directory' : self.view.image_tab.topdirectory,
+                                'date_start' : self.view.image_tab.date_start,
+                                'date_end':self.view.image_tab.date_end,
+                                'animal_prefix' : self.view.image_tab.ani_prefix,
+                                'animal_start' : self.view.image_tab.ani_start,
+                                'animal_end' : self.view.image_tab.ani_end,
+                                'img_prefix' : self.view.image_param_tab.img_prefix,
+                                'img_per_trial_per_channel' : self.view.image_param_tab.img_per_trial_per_channel,
+                                'num_interpolated_channels' : self.view.image_param_tab.num_interpolated_channels,
+                                }
+        for key, param in corresponding_params.items():
+            if key in loaded_data.keys():
+                if loaded_data[key] is not None:
+                    param.set(loaded_data[key])
 
     def reset_regression(self):
         """
@@ -336,15 +376,15 @@ class MSPApp:
             bin_size.set('ERROR')
             return
         bin_size = int(bin_size)
-        self.data.num_regions = list(filter(None, self.data.roi_names))
-        self.view.regression_tab.num_regs.set(f'{self.data.num_regions}')
-        self.view.regression_tab.num_runs.set(f'{self.data.num_runs} Run(s)')
+        num_regions = list(filter(None, self.data.roi_names))
+        self.view.regression_tab.num_regs.set(f'{num_regions}')
+        num_runs = len(self.data.traces_by_run_signal_trial)
+        self.view.regression_tab.num_runs.set(f'{num_runs} Run(s)')
         self.view.update_state('RG - Ready to Regress')
         self.data.bin_size: int = bin_size
 
     def regress_fibers(self):
         # Update View
-        # in between
         self.view.update_state('RG - Regressing')
         # Create and initialize the thread for image loading/processing
         regress_thread = threading.Thread(target=analysis.regression.regression_main,
@@ -363,8 +403,6 @@ class MSPApp:
         self.view.regression_tab.run_selector.set(run_options[0])
         self.view.regression_tab.ch_selector.set(ch_options[1])
         self.view.regression_tab.reg_selector.set(reg_options[0])
-
-
 
     def update_canvas_with_plot(self, mode):
         """
@@ -411,7 +449,7 @@ class MSPApp:
         canvas_widget = canvas.get_tk_widget()
 
         # Pack the widget into the graphcanvas
-        canvas_widget.pack(fill=tkk.BOTH, expand=True)
+        canvas_widget.pack(fill=tk.BOTH, expand=True)
 
         # Ensure the graphcanvas is set to the correct size
         self.view.regression_tab.graphcanvas.config(width=330, height=330)
@@ -549,5 +587,5 @@ def channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_tr
     return fig
 
 if __name__ == '__main__':
-    MSPApp()
+    MSPApp().run()
 

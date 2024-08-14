@@ -4,6 +4,7 @@ Load images and extract and organize trace data
 """
 from typing import List
 import os
+import re
 import numpy as np
 from PIL import Image
 import time
@@ -27,7 +28,8 @@ def process_main(data,
         # Update view if needed
         if controller is not None:
             controller.view.image_tab.longprog['value'] = (ind/run_path_list_len)*100
-            controller.view.image_tab.longprogstat.set(f'Processing run {run_path.split("/")[-1]}')
+            controller.view.image_tab.longprogstat.set(
+                f'Processing run {run_path.split("/")[-2]}/{run_path.split("/")[-1]}')
     
         valid_imgs = get_valid_images(run_path, data.img_prefix)
         if len(valid_imgs) == 0:
@@ -59,7 +61,8 @@ def process_main(data,
                         in zip(data.fiber_labels, fiber_masks)}
     data.traces_raw_by_run_reg = traces_raw_by_run_reg
     data.traces_by_run_signal_trial = traces_by_run_signal_trial
-    data.num_runs = len(traces_by_run_signal_trial)
+    runs_names = [f'{run_path.split("/")[-2]}/{run_path.split("/")[-1]}' for run_path in data.run_path_list]
+    data.log('imageprocess finished processing: \n {"\n".join(runs_names)}')
 
     if controller is not None:
         controller.view.update_state('RG - Processing Done Ready to Input Bin')
@@ -98,7 +101,7 @@ def get_valid_images(path, prefix):
     img_paths = [path for path in img_paths if path[-4:] == '.tif']
     prefix_len = len(prefix)
     img_paths = [path for path in img_paths if path[:prefix_len] == prefix]
-    img_paths = sorted(img_paths, key = lambda imgnm : int(imgnm[prefix_len+1:-4]))
+    img_paths = sorted(img_paths, key = lambda imgnm : int(re.sub('[^0-9]','',imgnm[prefix_len+1:-4])))
     return [f'{path}/{name}' for name in img_paths]
 
 def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius : int):
@@ -129,9 +132,9 @@ def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius :
     for x in range(sizex):
         for y in range(sizey):
             if ((x-circlex)**2 + (y-circley)**2)**(0.5) <= radius:
-                mask[x,y] = 1
+                mask[y,x] = 1
             else:
-                mask[x,y] = 0
+                mask[y,x] = 0
     return mask
 
 def subtractbackgroundsignal(traces : List[np.ndarray]): 

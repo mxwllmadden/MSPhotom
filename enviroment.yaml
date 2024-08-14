@@ -1,4 +1,4 @@
-name: photom-data-process2
+name: MSPhotom
 channels:
   - conda-forge
   - anaconda
