@@ -1,4 +1,4 @@
-
+*.spec
 *.tif
 *.mat
 *.pkl
