@@ -19,6 +19,8 @@ from MSPhotom import analysis
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
+from copy import deepcopy
+
 
 class MSPApp:
     def __init__(self):
@@ -64,11 +66,11 @@ class MSPApp:
         self.view.regression_tab.graph_corrsig_button.config(
             command=lambda: self.update_canvas_with_plot(1))
         self.view.regression_tab.graph_channel_button.config(
-            command=lambda: self.update_canvas_with_plot(2)
-        )
+            command=lambda: self.update_canvas_with_plot(2))
+
         self.refresh_data_view()
         self.view.update_state('IP - Parameter Entry')
-    
+
     def run(self):
         self.view.mainloop()
 
@@ -101,7 +103,7 @@ class MSPApp:
         num_interpolated_channels = self.view.image_param_tab.num_interpolated_channels
         roi_names = [var.get() for var in self.view.image_param_tab.roi_names]
         roi_names = [name.replace('_', '') for name in roi_names]
-        
+
         # Check to ensure user input is appropriate
         if not os.path.exists(target_directory):
             self.view.image_tab.topdirectory.set('BAD PATH')
@@ -128,7 +130,7 @@ class MSPApp:
             num_interpolated_channels.set('ERROR')
             return
         num_interpolated_channels = int(num_interpolated_channels.get())
-        
+
         # Generate candidate run path and filter to only existing paths
         candidate_date_paths = [target_directory+"/"+numtodate(date)
                                 for date in range(date_start_num, date_end_num+1)]
@@ -184,7 +186,7 @@ class MSPApp:
                             }
         popout = self.view.popout_regsel(reg_names=self.data_regsel['ROIs'],
                                          img=self.data_regsel['displayimg'])
-        
+
         popout.bind('<Destroy>', self.region_selection_prematureclose)
         self.view.regsel.selectioncanvas.bind(
             "<B1-Motion>", self.region_selection_drag)
@@ -208,8 +210,8 @@ class MSPApp:
         np_im = np_im2 / np_im
         np_im = np_im - np_im.min()
         np_im = np_im / np_im.max()
-        im_array : np.ndarray = np.asarray(cmap(np_im))*255
-        im_array : np.ndarray = im_array.astype(np.uint8)[:,:,:3]
+        im_array: np.ndarray = np.asarray(cmap(np_im))*255
+        im_array: np.ndarray = im_array.astype(np.uint8)[:, :, :3]
         return ImageTk.PhotoImage(Image.fromarray(im_array, mode='RGB'))
 
     def region_selection_prematureclose(self, event):
@@ -311,7 +313,7 @@ class MSPApp:
     def load_data(self):
         """
         Load data from pickle file
-        
+
         UNSAFE! Depickling allows the execution of arbitrary code. You should
         NEVER open a pickle file from a non-trusted source.
         """
@@ -328,23 +330,23 @@ class MSPApp:
         # This logic is here to clear the graph plot is a new pickle file is loaded
         for widget in self.view.regression_tab.graphcanvas.winfo_children():
             widget.destroy()
-            
+
     def unpack_params_from_data(self):
-        loaded_data = self.data.__dict__.copy()
+        loaded_data = deepcopy(self.data.__dict__)
         loaded_data['animal_start'] = 0
         loaded_data['animal_end'] = 100
         if loaded_data['img_date_range'] is not None:
             loaded_data['date_start'] = loaded_data['img_date_range'][0]
             loaded_data['date_end'] = loaded_data['img_date_range'][1]
-        corresponding_params = {'target_directory' : self.view.image_tab.topdirectory,
-                                'date_start' : self.view.image_tab.date_start,
-                                'date_end':self.view.image_tab.date_end,
-                                'animal_prefix' : self.view.image_tab.ani_prefix,
-                                'animal_start' : self.view.image_tab.ani_start,
-                                'animal_end' : self.view.image_tab.ani_end,
-                                'img_prefix' : self.view.image_param_tab.img_prefix,
-                                'img_per_trial_per_channel' : self.view.image_param_tab.img_per_trial_per_channel,
-                                'num_interpolated_channels' : self.view.image_param_tab.num_interpolated_channels,
+        corresponding_params = {'target_directory': self.view.image_tab.topdirectory,
+                                'date_start': self.view.image_tab.date_start,
+                                'date_end': self.view.image_tab.date_end,
+                                'animal_prefix': self.view.image_tab.ani_prefix,
+                                'animal_start': self.view.image_tab.ani_start,
+                                'animal_end': self.view.image_tab.ani_end,
+                                'img_prefix': self.view.image_param_tab.img_prefix,
+                                'img_per_trial_per_channel': self.view.image_param_tab.img_per_trial_per_channel,
+                                'num_interpolated_channels': self.view.image_param_tab.num_interpolated_channels,
                                 }
         for key, param in corresponding_params.items():
             if key in loaded_data.keys():
@@ -388,13 +390,14 @@ class MSPApp:
         self.view.update_state('RG - Regressing')
         # Create and initialize the thread for image loading/processing
         regress_thread = threading.Thread(target=analysis.regression.regression_main,
-                                        args=(self.data,
-                                              self),
-                                        daemon=True)
+                                          args=(self.data,
+                                                self),
+                                          daemon=True)
         regress_thread.start()
         run_options = list(self.data.traces_by_run_signal_trial.keys())
         reg_options = self.data.roi_names
-        ch_options = [f'ch{n}' for n in range(self.data.num_interpolated_channels)]
+        ch_options = [f'ch{n}' for n in range(
+            self.data.num_interpolated_channels)]
         # print(run_options)
         self.view.regression_tab.run_selector['values'] = run_options
         self.view.regression_tab.reg_selector['values'] = reg_options
@@ -424,7 +427,8 @@ class MSPApp:
             corrsig_data = self.data.traces_by_run_signal_trial[graph_run][corrsig_key]
             trial_data_y = trace_data[graph_trial - 1, :]
             trial_data_x = corrsig_data[graph_trial - 1, :]
-            fig = corrsig_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial)
+            fig = corrsig_test_graph(
+                trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial)
         elif mode == 2:
             trace_key = f'{graph_reg}_{graph_ch}'
             ch0_key = f'{graph_reg}_ch0'
@@ -432,14 +436,17 @@ class MSPApp:
             ch0_data = self.data.corrsig_reg_results[graph_run][ch0_key]
             trial_data_y = trace_data[:, graph_trial - 1]
             trial_data_x = ch0_data[:, graph_trial - 1]
-            fig = channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial)
+            fig = channel_test_graph(
+                trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial)
         # Set the figure size to fit the canvas
         fig.set_size_inches(self.view.regression_tab.graphcanvas.winfo_width() / fig.get_dpi(),
                             self.view.regression_tab.graphcanvas.winfo_height() / fig.get_dpi())
 
         # Create a FigureCanvasTkAgg object from the Figure with the graphcanvas as master
-        fig.subplots_adjust(left=0.12, right=.95, top=.945, bottom=0.11, wspace=0.4, hspace=0.4)
-        canvas = FigureCanvasTkAgg(fig, master=self.view.regression_tab.graphcanvas)
+        fig.subplots_adjust(left=0.12, right=.95, top=.945,
+                            bottom=0.11, wspace=0.4, hspace=0.4)
+        canvas = FigureCanvasTkAgg(
+            fig, master=self.view.regression_tab.graphcanvas)
         canvas.draw()  # Draw the plot
 
         # Clear any existing widgets in the graphcanvas
@@ -454,7 +461,6 @@ class MSPApp:
         # Ensure the graphcanvas is set to the correct size
         self.view.regression_tab.graphcanvas.config(width=330, height=330)
         self.view.update_state('RG - Graphing Done')
-
 
     def set_state_based_on_data(self):
         """
@@ -501,6 +507,7 @@ class MSPApp:
             self.view.update_state('IP - Parameter Entry')
             return
 
+
 def multikey(x, *args):
     """
     Parameters
@@ -518,8 +525,12 @@ def multikey(x, *args):
     """
     result = []
     for arg in args:
-        result.append(x[arg])
+        if arg in x.keys():
+            result.append(x[arg])
+        else:
+            result.append(None)
     return result
+
 
 def datetonum(date: str):
     """
@@ -536,7 +547,7 @@ def datetonum(date: str):
         Date in numerical format.
 
     """
-    
+
     if len(date) != 8:
         return False
     if date[2] != "-" or date[5] != "-":
@@ -546,27 +557,32 @@ def datetonum(date: str):
         mdyextract = [int(i) for i in mdyextract]
         return ((mdyextract[1]) + (mdyextract[0]*40) + (mdyextract[2]*500))
     return False
-    
+
+
 def numtodate(numcode: int):
     assert isinstance(numcode, int), 'numtodate accepts integers only'
     y, d = divmod(numcode, 500)
-    m, d = divmod(d,40)
+    m, d = divmod(d, 40)
     return (str(m).zfill(2)+"-"+str(d).zfill(2)+"-"+str(y).zfill(2))
+
 
 def corrsig_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial):
 
     plt.style.use('fivethirtyeight')
     fig = Figure(figsize=(7, 5))
     ax = fig.add_subplot(111)
-    ax.plot(np.unique(trial_data_x), np.poly1d(np.polyfit(trial_data_x, trial_data_y, 1))(np.unique(trial_data_x)),  color='red', linewidth=2, zorder=1)
+    ax.plot(np.unique(trial_data_x), np.poly1d(np.polyfit(trial_data_x, trial_data_y, 1))(
+        np.unique(trial_data_x)),  color='red', linewidth=2, zorder=1)
     ax.scatter(trial_data_x, trial_data_y, zorder=2)
     ax.set_xlabel('Corrsig-Fiber Values', fontsize=8)
     ax.set_ylabel(f'{graph_reg}-Fiber Trace Values', fontsize=8)
-    ax.set_title(f'{graph_reg}-Fiber Against Corr-Fiber in {graph_ch}(Trial: {graph_trial})', fontsize=8)
+    ax.set_title(
+        f'{graph_reg}-Fiber Against Corr-Fiber in {graph_ch}(Trial: {graph_trial})', fontsize=8)
     ax.tick_params(axis='both', which='major', labelsize=6)
     ax.tick_params(axis='both', which='minor', labelsize=4)
 
     return fig
+
 
 def channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_trial):
 
@@ -574,7 +590,8 @@ def channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_tr
     plt.style.use('fivethirtyeight')
     fig = Figure(figsize=(7, 5))
     ax = fig.add_subplot(111)
-    ax.plot(np.unique(trial_data_x), np.poly1d(np.polyfit(trial_data_x, trial_data_y, 1))(np.unique(trial_data_x)),  color='red', linewidth=2, zorder=1)
+    ax.plot(np.unique(trial_data_x), np.poly1d(np.polyfit(trial_data_x, trial_data_y, 1))(
+        np.unique(trial_data_x)),  color='red', linewidth=2, zorder=1)
     ax.scatter(trial_data_x, trial_data_y, zorder=2)
 
     # Add labels and legend
@@ -586,6 +603,6 @@ def channel_test_graph(trial_data_x, trial_data_y, graph_reg, graph_ch, graph_tr
 
     return fig
 
+
 if __name__ == '__main__':
     MSPApp().run()
-

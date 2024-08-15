@@ -32,7 +32,7 @@ class DataTab(tk.Frame):
             label = tk.Label(self, text = key)
             label.grid(column = 0, row=ind+1, columnspan=2)
             self.current.append(label)
-            if isinstance(item, (int,str,float)):
+            if isinstance(item, (int,str,float)) or key == 'roi_names':
                 disp_item = str(item)
             elif isinstance(item, (list,dict)):
                 disp_item = f'Contains {len(item)} items'
