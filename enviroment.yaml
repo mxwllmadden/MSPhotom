@@ -12,3 +12,4 @@ dependencies:
   - scipy
   - spyder-kernels>=2.5
   - h5py
+  - opencv

@@ -44,6 +44,7 @@ def regression_main(data: MSPData, controller=None):
         # Does the regression and outputs regression dictionary
         regressed_signals, corrsig_reg_results = regression_func(traces, binsize, unique_channels, unique_regions,
                                                                  unique_channels_ch0_removed)
+
         regressed_traces_by_run_signal_trial[run_key] = regressed_signals
         corrsig_reg_results[run_key] = corrsig_reg_results
 

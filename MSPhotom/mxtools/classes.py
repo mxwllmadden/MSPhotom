@@ -30,27 +30,43 @@ def create_monitored_class(cls):
     def create_wrapped_method(name, method):
         def wrapped_method(self, *args, **kwargs):
             try:
-                if self._report is True:
+                if self._report:
                     print(f'method {name} triggered')
-                if name in self.monitor_trigger_on_call.keys():
-                    args, kwargs = self.monitor_trigger_on_call[name](
-                        self, *args, **kwargs)
-                    if self._report is True:
+    
+                # Ensure args and kwargs are not None
+                args = args or ()
+                kwargs = kwargs or {}
+    
+                # Handle monitor trigger on call
+                if name in self.monitor_trigger_on_call:
+                    modified_args = self.monitor_trigger_on_call[name](self, *args, **kwargs)
+                    # If modified_args is None, keep original args and kwargs
+                    if modified_args is not None:
+                        args, kwargs = modified_args
+                    if self._report:
                         print('    Call modified')
             except Exception as error:
                 print(f'Unknown error during monitoring of precall for {name}')
                 print(error)
+            
             result = method(self, *args, **kwargs)
+            
             try:
-                if name in self.monitor_trigger_on_return.keys():
-                    result = self.monitor_trigger_on_return[name](self, result)
-                    if self._report is True:
+                # Handle monitor trigger on return
+                if name in self.monitor_trigger_on_return:
+                    modified_result = self.monitor_trigger_on_return[name](self, result)
+                    # If modified_result is None, keep the original result
+                    if modified_result is not None:
+                        result = modified_result
+                    if self._report:
                         print('    Return modified')
             except Exception as error:
                 print(f'Unknown error during monitoring of return for {name}')
                 print(error)
+            
             return result
         return wrapped_method
+
 
     def monitor_method_call(self, method_name, triggered_function):
         self.monitor_trigger_on_call[method_name] = triggered_function
@@ -61,7 +77,7 @@ def create_monitored_class(cls):
     def passthroughmethod(function, *fargs, **fkwargs):
         def wrappedfunc(self, *args, **kwargs):
             function(*fargs, **fkwargs)
-            return args, kwargs
+            return args or (), kwargs or {}
         return wrappedfunc
 
     def print_on_call(self, method_name, msg):

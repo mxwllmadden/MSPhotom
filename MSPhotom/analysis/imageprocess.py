@@ -8,9 +8,12 @@ import re
 import numpy as np
 from PIL import Image
 import time
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 def process_main(data,
-                 controller=None):
+                 controller=None,
+                 threading = False):
     # STEP 1: Generate all the mask arrays for each region from the dataset info.
     # Each mask is a boolean numpy array with the selected region as "True" and all else as "False"
     fiber_coords_xyr = [(sum(coord[0:3:2])/2, # X coordinate
@@ -34,7 +37,10 @@ def process_main(data,
         valid_imgs = get_valid_images(run_path, data.img_prefix)
         if len(valid_imgs) == 0:
             continue
-        traces_raw = process_run(valid_imgs, fiber_masks, controller)
+        if not threading:
+            traces_raw = process_run(valid_imgs, fiber_masks, controller)
+        else:
+            traces_raw = process_run_async(valid_imgs, fiber_masks, controller)
         traces_raw_by_run_reg[run_path] = (traces_raw)
         # STEP 1: REMOVE BACKGROUND
         traces = subtractbackgroundsignal(traces_raw)
@@ -72,14 +78,9 @@ def process_main(data,
         controller.view.image_tab.shortprogstat.set('All Images Processed')
         controller.view.image_tab.longprogstat.set('All Runs Processed')
 
-def process_run(valid_imgs, masks, controller = None):
+def process_run(valid_imgs, masks, controller = None, threading = False):
     start_time = time.time()
-    # Preallocate trace arrays
-    traces_raw = []
-    for region in masks:
-        trace = np.empty(len(valid_imgs))
-        trace.fill(np.nan)
-        traces_raw.append(trace)
+    traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks]
     max_img = len(valid_imgs)
     # Iterate through all images
     for ind, img_nm in enumerate(valid_imgs):
@@ -97,9 +98,41 @@ def process_run(valid_imgs, masks, controller = None):
             controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')
     return traces_raw
 
+async def process_run_async(valid_imgs, masks, controller = None, threading = False):
+    start_time = time.time()
+    traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks]
+    max_img = len(valid_imgs)
+    async def load_extract_image(img_nm, ind):
+        try:
+            with Image.open(img_nm) as img_PIL:
+                img_np = np.array(img_PIL)
+            for trace, mask in zip(traces_raw, masks):
+                trace[ind] = img_np[mask].mean()
+        except:
+            print(f'Failed to load {img_nm}, trace value was skipped')
+        if controller is not None:
+            controller.view.image_tab.runprog['value'] = (ind/max_img)*100
+            controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')
+            controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')
+    
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as executor:
+        tasks = [
+            loop.run_in_executor(executor, load_extract_image, img_nm, ind)
+            for ind, img_nm in enumerate(valid_imgs)
+        ]
+        await asyncio.gather(*tasks)
+    
+    return traces_raw
+
 def get_valid_images(path, prefix):
     img_paths = os.listdir(path)
-    img_paths = [path for path in img_paths if path[-4:] == '.tif']
+    img_paths = [p for p in img_paths if os.path.splitext(p)[-1] == '.tif']
+    if prefix == '*':
+        img_paths = sorted(img_paths, 
+                           key = lambda p : int(os.path.splitext(p)[0].split('_')[-1])
+                           )
+        return [f'{path}/{name}' for name in img_paths]
     prefix_len = len(prefix)
     img_paths = [path for path in img_paths if path[:prefix_len] == prefix]
     img_paths = sorted(img_paths, key = lambda imgnm : int(re.sub('[^0-9]','',imgnm[prefix_len+1:-4])))

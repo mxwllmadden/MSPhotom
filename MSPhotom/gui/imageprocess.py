@@ -29,7 +29,7 @@ class ImageProcessTab(tk.Frame):
         self.loadbutton.grid(column=0, row=0,padx=0, pady=(0,10), sticky="se")
         self.regselbutton.grid(column=0, row=1,padx=0, pady=(0,10), sticky="se")
         self.processbutton.grid(column=0, row=2,padx=0, pady=(0,10), sticky="se")
-        self.reset_button.grid(column=0, row=3,padx=2, pady=(0,10), sticky="se")
+        self.reset_button.grid(column=0, row=5,padx=2, pady=(0,10), sticky="se")
         
 
         #String Variables and Defaults
@@ -46,6 +46,7 @@ class ImageProcessTab(tk.Frame):
         self.ani_prefix.set("MRKPFCREV")
         self.ani_start.set("1")
         self.ani_end.set("40")
+
         
         #Entry Fields
         tk.Entry(self, width=50, textvariable=self.topdirectory).grid(column=0, row=1, columnspan=2, padx=(10,0), pady=(0,10), sticky="w")
@@ -54,6 +55,15 @@ class ImageProcessTab(tk.Frame):
         tk.Entry(self, width=18, textvariable=self.ani_prefix).grid(column=0, row=7, padx=10, pady=(0,10), sticky="w")
         tk.Entry(self, width=18, textvariable=self.ani_start).grid(column=1, row=7, padx=10, pady=(0,10), sticky="w")
         tk.Entry(self, width=18, textvariable=self.ani_end).grid(column=2, row=7, padx=10, pady=(0,10), sticky="w")
+        
+        
+        #Integer Variables and defaults
+        self.threading_enabled = tk.IntVar()
+        
+        self.threading_enabled.set(0)
+        
+        #Checkbox and Numerical Entry
+        tk.Checkbutton(buttoncanvas, text = 'Enable Threading\n(EXPERIMENTAL)', variable=self.threading_enabled).grid(column = 0, row = 3, padx=(10,0), pady=(0,10), sticky="w")
         
         #Static Labels
         tk.Label(self, text="Dataset Folder Path", anchor="w",width=20).grid(column=0, row=0, padx=10, pady=(10,0))

@@ -58,6 +58,7 @@ def trigger_on_run_call(self):
     self.view.root.title("MSPhotomApp - REMIXED!!! Use at own risk")
     self.data_old = deepcopy(self.data)
     print(__doc__)
+    return None
 
 
 def trigger_on_data_load_return(self: MSPApp, *result):
