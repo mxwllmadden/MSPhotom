@@ -15,6 +15,12 @@ If you are a Mathur Lab member, I do not recommend using this version of the
 app unless you are confident in your ability to understand both the photometry
 data pipeline and this python app.
 
+This remix uses the mxtools.classes module to alter the behavior of the base
+application. While a flexible kludge allowing active alteration of class
+behavior, it introduces significant processing overhead each time a class
+method is called or returned. It is not recommended for use beyond quick fixes
+and patches meant only for personal use or as a debugging tool.
+
 ******************************************************************************
 
 Notable tweaks to app behavior.
@@ -30,7 +36,7 @@ Partial Analysis
 Autosave
     -App autosaves to pickle upon completion of imageprocessing to prevent data loss.
     -Both a partial save and merged save are completed in case there is an issue
-    with data merge
+    with data merge.
 
 Created on Wed Aug  7 13:50:39 2024
 
@@ -51,13 +57,16 @@ def main():
     app.monitor_method_call('run', trigger_on_run_call)
     app.monitor_method_return('load_data', trigger_on_data_load_return)
     app.monitor_method_return('load_runs', trigger_on_load_runs_return)
+    app.monitor_replace_method('processimages', processimages_remix)
     return app.run()
 
 
-def trigger_on_run_call(self):
+def trigger_on_run_call(self, *args, **kwargs):
     self.view.root.title("MSPhotomApp - REMIXED!!! Use at own risk")
     self.data_old = deepcopy(self.data)
+    self._remix_runs_done = []
     print(__doc__)
+    return args, kwargs
 
 
 def trigger_on_data_load_return(self: MSPApp, *result):
@@ -92,6 +101,8 @@ def trigger_on_load_runs_return(self, *result):
     print(*new_runs, sep='\n')
     print("""Previously analyzed runs were removed.
           Inspect the filetree or terminal to ensure new runs are detected""")
+    return result
+
 
 def processimages_remix(self):
     """
@@ -102,11 +113,12 @@ def processimages_remix(self):
         now = datetime.now()
         timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
         manage = DataManager(data)
-        manage.save(f'autosave_partial_{timestamp}')
+        manage.save(f'autosave_partial_{timestamp}.pkl')
         merged_data = merge_data(data, controller.data_old)
         manage = DataManager(merged_data)
-        manage.save(f'autosave_merged_{timestamp}')
+        manage.save(f'autosave_merged_{timestamp}.pkl')
         controller.data = merged_data
+        print('Successfully autosaved')
     # Update View
     self.view.update_state('IP - Processing Images')
     # Create and initialize the thread for image loading/processing
@@ -116,12 +128,49 @@ def processimages_remix(self):
                                     daemon=True)
     pross_thread.start()
 
+
 def merge_data(data, old_data):
-    data.run_path_list = [*old_data.run_path_list, *data.run_path_list]
-    data.traces_raw_by_run_reg = {**old_data.traces_raw_by_run_reg,
-                                  **data.traces_raw_by_run_reg}
-    data.traces_by_run_signal_trial = {**old_data.traces_by_run_signal_trial,
-                                       **data.traces_by_run_signal_trial}
+    data.run_path_list = agnostic_merge(old_data.run_path_list,
+                                        data.run_path_list)
+    data.traces_raw_by_run_reg = agnostic_merge(old_data.traces_raw_by_run_reg,
+                                                data.traces_raw_by_run_reg)
+    data.traces_by_run_signal_trial = agnostic_merge(old_data.traces_by_run_signal_trial,
+                                                     data.traces_by_run_signal_trial)
+    return data
+
+
+def agnostic_merge(*iterables):
+    # Filter out None values
+    valid_iterables = [itble for itble in iterables if itble is not None]
+
+    if not valid_iterables:
+        raise ValueError("At least one valid iterable must be provided.")
+
+    first_iterable = valid_iterables[0]
+
+    if isinstance(first_iterable, list):
+        if any(not isinstance(iterable, list) for iterable in valid_iterables):
+            raise TypeError(
+                "All arguments must be lists if the first argument is a list.")
+        # Merge all lists
+        merged_list = []
+        for iterable in valid_iterables:
+            merged_list.extend(iterable)
+        return merged_list
+
+    elif isinstance(first_iterable, dict):
+        if any(not isinstance(iterable, dict) for iterable in valid_iterables):
+            raise TypeError(
+                "All arguments must be dictionaries if the first argument is a dictionary.")
+        # Merge all dictionaries
+        merged_dict = {}
+        for iterable in valid_iterables:
+            merged_dict.update(iterable)
+        return merged_dict
+
+    else:
+        raise TypeError("Arguments must be either lists or dictionaries.")
+
 
 if __name__ == '__main__':
     main()
