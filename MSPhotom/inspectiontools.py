@@ -10,7 +10,7 @@ Created on Wed Aug  7 10:07:07 2024
 from MSPhotom import MSPApp
 from MSPhotom.mxtools.classes import create_monitored_class, MonitoredClass
 
-MSPInspector = create_monitored_class(MSPApp)
+MSPInspector = create_monitored_class(MSPApp, do_not_monitor = ('region_selection_drag'))
 
 
 if __name__ == '__main__':

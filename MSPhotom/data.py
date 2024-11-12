@@ -48,7 +48,20 @@ class MSPData:
     
     def log(self, msg : str):
         self.logs.append(f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} - {msg}')
-
+        
+    def __add__(self, other):
+        # Self is assumed to be the 'primary' instance of data.
+        merged_data_attr = {}
+        shared_attribs = self.__dict__.keys() & other.__dict__.keys()
+        orphan_attribs = self.__dict__.keys() - other.__dict__.keys()
+        for attr in shared_attribs:
+            merged_data_attr[attr] = agnostic_merge(self.__dict__[attr],
+                                                    other.__dict__[attr])
+        for attr in orphan_attribs:
+            merged_data_attr[attr] = self.__dict__[attr]
+            
+def agnostic_merge(*args):
+    pass
 
 class DataManager:
     def __init__(self, data):

@@ -170,8 +170,8 @@ class MSPApp:
         """
         Generate a popup region selection window and define its behavior.
         """
-        if len(self.data.run_path_list) == 0:
-            messagebox('No Paths Loaded')
+        if not len(self.data.run_path_list):
+            messagebox.Message(message='No Runs Detected')
             return
         self.view.update_state('None')
         self.data_regsel = {'ROIs':
@@ -321,7 +321,7 @@ class MSPApp:
                                           filetypes=[
                                               ('Python Pickle', '*.pkl')],
                                           title='Load Data')
-        if file is None:
+        if not file:
             return
         manage = DataManager(self.data)
         self.data = MSPData(**manage.load(file).__dict__)
