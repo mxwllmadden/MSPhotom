@@ -4,12 +4,14 @@ channels:
   - anaconda
   - defaults
 dependencies:
+  - asyncio
+  - nest_asyncio
   - matplotlib
   - numpy
   - pillow
   - pyinstaller
   - python=3.11
   - scipy
-  - spyder-kernels>=2.5
+  - spyder-kernels=2.5
   - h5py
   - opencv

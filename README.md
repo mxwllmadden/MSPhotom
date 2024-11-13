@@ -7,7 +7,8 @@ This application also allows for performance of signal regression steps to produ
 Specifications and guides to the hardware are provided in **docs**, and a basic script for arduino for camera and laser control is provided in **hardwarecontrol**.
 
 ## Deployment
-This code can be run either using the provided conda enviroment or using the executable release (generated with pyinstaller). You may generate your own binary using the pyinstaller command below.
+This code can be run either using the provided conda enviroment or using the executable release (generated with pyinstaller). You may generate your own executable using the pyinstaller command below.
 ```
-pyinstaller --onefile --hidden-import=scipy.io MSPhotomApp.py
+pyinstaller start.spec
 ```
+It is NOT recommended to run the MSPhotom application from within a jupyter notebook or Spyder, as asynchronous image loading will be disabled to prevent conflict with the jupyter/spyder eventloop

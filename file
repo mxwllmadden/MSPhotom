@@ -1,0 +1,362 @@
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex ede5e54..84dda69 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -1,4 +1,3 @@[m
+[31m-*.spec[m
+ *.tif[m
+ *.mat[m
+ *.pkl[m
+[1mdiff --git a/MSPhotom/analysis/imageprocess.py b/MSPhotom/analysis/imageprocess.py[m
+[1mindex a3df885..ff9166f 100644[m
+[1m--- a/MSPhotom/analysis/imageprocess.py[m
+[1m+++ b/MSPhotom/analysis/imageprocess.py[m
+[36m@@ -9,11 +9,14 @@[m [mimport numpy as np[m
+ from PIL import Image[m
+ import time[m
+ import asyncio[m
+[32m+[m[32mimport nest_asyncio[m
+ from concurrent.futures import ThreadPoolExecutor[m
+ [m
+[32m+[m[32mnest_asyncio.apply()[m
+[32m+[m
+ def process_main(data,[m
+                  controller=None,[m
+[31m-                 threading = False):[m
+[32m+[m[32m                 threaded = False):[m
+     # STEP 1: Generate all the mask arrays for each region from the dataset info.[m
+     # Each mask is a boolean numpy array with the selected region as "True" and all else as "False"[m
+     fiber_coords_xyr = [(sum(coord[0:3:2])/2, # X coordinate[m
+[36m@@ -37,10 +40,11 @@[m [mdef process_main(data,[m
+         valid_imgs = get_valid_images(run_path, data.img_prefix)[m
+         if len(valid_imgs) == 0:[m
+             continue[m
+[31m-        if not threading:[m
+[32m+[m[32m        if not threaded:[m
+             traces_raw = process_run(valid_imgs, fiber_masks, controller)[m
+         else:[m
+[31m-            traces_raw = process_run_async(valid_imgs, fiber_masks, controller)[m
+[32m+[m[32m            print(f'Attempting aysynchronous processing of {run_path}')[m
+[32m+[m[32m            traces_raw = process_run_async_wrapper(valid_imgs, fiber_masks, controller)[m
+         traces_raw_by_run_reg[run_path] = (traces_raw)[m
+         # STEP 1: REMOVE BACKGROUND[m
+         traces = subtractbackgroundsignal(traces_raw)[m
+[36m@@ -78,7 +82,8 @@[m [mdef process_main(data,[m
+         controller.view.image_tab.shortprogstat.set('All Images Processed')[m
+         controller.view.image_tab.longprogstat.set('All Runs Processed')[m
+ [m
+[31m-def process_run(valid_imgs, masks, controller = None, threading = False):[m
+[32m+[m
+[32m+[m[32mdef process_run(valid_imgs, masks, controller = None, update_interval = 3):[m
+     start_time = time.time()[m
+     traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks][m
+     max_img = len(valid_imgs)[m
+[36m@@ -88,34 +93,43 @@[m [mdef process_run(valid_imgs, masks, controller = None, threading = False):[m
+             img_PIL = Image.open(img_nm)[m
+             img_np = np.array(img_PIL)[m
+         except:[m
+[31m-            print('Failed to load {img_nm}, trace value was skipped')[m
+[32m+[m[32m            print(f'Failed to load {img_nm}, trace value was skipped')[m
+             continue[m
+         for trace, mask in zip(traces_raw, masks):[m
+             trace[ind] = img_np[mask].mean()[m
+[31m-        if controller is not None:[m
+[32m+[m[32m        if controller is not None and ind % update_interval == 0:[m
+             controller.view.image_tab.runprog['value'] = (ind/max_img)*100[m
+             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')[m
+             controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')[m
+[32m+[m[32m    if controller is not None:[m
+[32m+[m[32m        controller.view.image_tab.runprog['value'] = 100[m
+[32m+[m[32m        controller.view.image_tab.shortprogstat.set('Processing Complete')[m
+[32m+[m[32m        speed = max_img / (time.time() - start_time)[m
+[32m+[m[32m        controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')[m
+     return traces_raw[m
+ [m
+[31m-async def process_run_async(valid_imgs, masks, controller = None, threading = False):[m
+[32m+[m
+[32m+[m[32masync def process_run_async(valid_imgs, masks, controller=None, update_interval = 111):[m
+     start_time = time.time()[m
+     traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks][m
+     max_img = len(valid_imgs)[m
+[31m-    async def load_extract_image(img_nm, ind):[m
+[32m+[m
+[32m+[m[32m    def load_extract_image(img_nm, ind):[m
+         try:[m
+             with Image.open(img_nm) as img_PIL:[m
+                 img_np = np.array(img_PIL)[m
+             for trace, mask in zip(traces_raw, masks):[m
+                 trace[ind] = img_np[mask].mean()[m
+[31m-        except:[m
+[31m-            print(f'Failed to load {img_nm}, trace value was skipped')[m
+[31m-        if controller is not None:[m
+[31m-            controller.view.image_tab.runprog['value'] = (ind/max_img)*100[m
+[32m+[m[32m        except Exception as e:[m
+[32m+[m[32m            print(f'Failed to load {img_nm}, trace value was skipped. Error: {e}')[m
+[32m+[m[41m        [m
+[32m+[m[32m        if controller is not None and ind % update_interval == 0:[m
+[32m+[m[32m            controller.view.image_tab.runprog['value'] = (ind / max_img) * 100[m
+             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')[m
+[31m-            controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')[m
+[31m-    [m
+[31m-    loop = asyncio.get_event_loop()[m
+[32m+[m[32m            speed = ind / (time.time() - start_time)[m
+[32m+[m[32m            controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')[m
+[32m+[m
+[32m+[m[32m    loop = asyncio.get_running_loop()[m
+     with ThreadPoolExecutor() as executor:[m
+         tasks = [[m
+             loop.run_in_executor(executor, load_extract_image, img_nm, ind)[m
+[36m@@ -123,8 +137,24 @@[m [masync def process_run_async(valid_imgs, masks, controller = None, threading = Fa[m
+         ][m
+         await asyncio.gather(*tasks)[m
+     [m
+[32m+[m[32m    if controller is not None:[m
+[32m+[m[32m        controller.view.image_tab.runprog['value'] = 100[m
+[32m+[m[32m        controller.view.image_tab.shortprogstat.set('Processing Complete')[m
+[32m+[m[32m        speed = max_img / (time.time() - start_time)[m
+[32m+[m[32m        controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')[m
+     return traces_raw[m
+ [m
+[32m+[m
+[32m+[m[32mdef process_run_async_wrapper(valid_imgs, masks, controller=None):[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        # Runs async function in a temporary event loop and closes it after completion[m
+[32m+[m[32m        return asyncio.run(process_run_async(valid_imgs, masks, controller))[m
+[32m+[m[32m    except RuntimeError as e:[m
+[32m+[m[32m        print("Error in running async wrapper:", e)[m
+[32m+[m[32m        # Optionally: Fallback to process_run if async processing fails[m
+[32m+[m[32m        return process_run(valid_imgs, masks, controller, 111)[m
+[32m+[m
+[32m+[m
+ def get_valid_images(path, prefix):[m
+     img_paths = os.listdir(path)[m
+     img_paths = [p for p in img_paths if os.path.splitext(p)[-1] == '.tif'][m
+[36m@@ -138,22 +168,23 @@[m [mdef get_valid_images(path, prefix):[m
+     img_paths = sorted(img_paths, key = lambda imgnm : int(re.sub('[^0-9]','',imgnm[prefix_len+1:-4])))[m
+     return [f'{path}/{name}' for name in img_paths][m
+ [m
+[31m-def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius : int):[m
+[32m+[m
+[32m+[m[32mdef npy_circlemask(sizex: int, sizey: int, circlex: int, circley: int, radius: int):[m
+     """[m
+     Creates a numpy mask array with a circle region. Is used for masking image [m
+     files to pull only the selected fiber region.[m
+ [m
+     Parameters[m
+     ----------[m
+[31m-    sizex : in[m
+[32m+[m[32m    sizex : int[m
+         DESCRIPTION.[m
+[31m-    sizey : TYPE[m
+[32m+[m[32m    sizey : int[m
+         DESCRIPTION.[m
+[31m-    circlex : TYPE[m
+[32m+[m[32m    circlex : int[m
+         DESCRIPTION.[m
+[31m-    circley : TYPE[m
+[32m+[m[32m    circley : int[m
+         DESCRIPTION.[m
+[31m-    radius : TYPE[m
+[32m+[m[32m    radius : int[m
+         DESCRIPTION.[m
+ [m
+     Returns[m
+[36m@@ -162,15 +193,16 @@[m [mdef npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius :[m
+         Array of bool values to be used a mask over a specific circular region.[m
+ [m
+     """[m
+[31m-    mask = np.empty((sizex,sizey), dtype="bool_")[m
+[32m+[m[32m    mask = np.empty((sizex, sizey), dtype="bool_")[m
+     for x in range(sizex):[m
+         for y in range(sizey):[m
+             if ((x-circlex)**2 + (y-circley)**2)**(0.5) <= radius:[m
+[31m-                mask[y,x] = 1[m
+[32m+[m[32m                mask[y, x] = 1[m
+             else:[m
+[31m-                mask[y,x] = 0[m
+[32m+[m[32m                mask[y, x] = 0[m
+     return mask[m
+ [m
+[32m+[m
+ def subtractbackgroundsignal(traces : List[np.ndarray]): [m
+     """[m
+     Subtract background signal from each trace.[m
+[36m@@ -194,6 +226,7 @@[m [mdef subtractbackgroundsignal(traces : List[np.ndarray]):[m
+         subtrace.append(np.subtract(traces[i],traces[0]))[m
+     return subtrace[m
+ [m
+[32m+[m
+ def splittraces(traces,channels) -> List[np.ndarray]:[m
+     """[m
+     Split traces data into individual channels.[m
+[36m@@ -216,6 +249,7 @@[m [mdef splittraces(traces,channels) -> List[np.ndarray]:[m
+         for j in range(channels): splittraces.append(traces[i][j::channels])[m
+     return splittraces[m
+ [m
+[32m+[m
+ def reshapetraces(traces,imgptrial):[m
+     """[m
+     Reshape traces data into a specified number of trials per image.[m
+[36m@@ -241,6 +275,7 @@[m [mdef reshapetraces(traces,imgptrial):[m
+         reshapedtraces.append(np.reshape(x,(trials,imgptrial)))[m
+     return reshapedtraces[m
+ [m
+[32m+[m
+ def loadimg(path):[m
+     """[m
+     Load an image from the specified path.[m
+[1mdiff --git a/MSPhotom/gui/imageprocess.py b/MSPhotom/gui/imageprocess.py[m
+[1mindex 4ab6801..8e01f7d 100644[m
+[1m--- a/MSPhotom/gui/imageprocess.py[m
+[1m+++ b/MSPhotom/gui/imageprocess.py[m
+[36m@@ -60,10 +60,10 @@[m [mclass ImageProcessTab(tk.Frame):[m
+         #Integer Variables and defaults[m
+         self.threading_enabled = tk.IntVar()[m
+         [m
+[31m-        self.threading_enabled.set(0)[m
+[32m+[m[32m        self.threading_enabled.set(1)[m
+         [m
+         #Checkbox and Numerical Entry[m
+[31m-        tk.Checkbutton(buttoncanvas, text = 'Enable Threading\n(EXPERIMENTAL)', variable=self.threading_enabled).grid(column = 0, row = 3, padx=(10,0), pady=(0,10), sticky="w")[m
+[32m+[m[32m        tk.Checkbutton(buttoncanvas, text = 'Enable High Performance\n(EXPERIMENTAL)', variable=self.threading_enabled).grid(column = 0, row = 3, padx=(10,0), pady=(0,10), sticky="w")[m
+         [m
+         #Static Labels[m
+         tk.Label(self, text="Dataset Folder Path", anchor="w",width=20).grid(column=0, row=0, padx=10, pady=(10,0))[m
+[1mdiff --git a/MSPhotom/main.py b/MSPhotom/main.py[m
+[1mindex deb254d..4a78765 100644[m
+[1m--- a/MSPhotom/main.py[m
+[1m+++ b/MSPhotom/main.py[m
+[36m@@ -15,6 +15,7 @@[m [mfrom matplotlib import pyplot as pp[m
+ import tkinter as tk[m
+ from MSPhotom.data import MSPData, DataManager[m
+ from MSPhotom.gui.main import AppView[m
+[32m+[m[32mfrom MSPhotom.settings import Settings[m
+ from MSPhotom import analysis[m
+ import matplotlib.pyplot as plt[m
+ from matplotlib.figure import Figure[m
+[36m@@ -32,6 +33,7 @@[m [mclass MSPApp:[m
+         None.[m
+ [m
+         """[m
+[32m+[m[32m        self.settings = Settings()[m
+         self.view = AppView()[m
+         self.data = MSPData()[m
+ [m
+[36m@@ -70,6 +72,36 @@[m [mclass MSPApp:[m
+ [m
+         self.refresh_data_view()[m
+         self.view.update_state('IP - Parameter Entry')[m
+[32m+[m[41m        [m
+[32m+[m[32m        self.corresponding_params = {'target_directory': self.view.image_tab.topdirectory,[m
+[32m+[m[32m                                'date_start': self.view.image_tab.date_start,[m
+[32m+[m[32m                                'date_end': self.view.image_tab.date_end,[m
+[32m+[m[32m                                'animal_prefix': self.view.image_tab.ani_prefix,[m
+[32m+[m[32m                                'animal_start': self.view.image_tab.ani_start,[m
+[32m+[m[32m                                'animal_end': self.view.image_tab.ani_end,[m
+[32m+[m[32m                                'img_prefix': self.view.image_param_tab.img_prefix,[m
+[32m+[m[32m                                'img_per_trial_per_channel': self.view.image_param_tab.img_per_trial_per_channel,[m
+[32m+[m[32m                                'num_interpolated_channels': self.view.image_param_tab.num_interpolated_channels,[m
+[32m+[m[32m                                } | {f'ROI_{ind}' : field[m[41m [m
+[32m+[m[32m                                     for ind, field in enumerate(self.view.image_param_tab.roi_names)}[m
+[32m+[m[32m        self.apply_settings()[m
+[32m+[m[41m        [m
+[32m+[m[32m        self.view.root.protocol("WM_DELETE_WINDOW", self.on_close)[m
+[32m+[m[41m    [m
+[32m+[m[32m    def on_close(self):[m
+[32m+[m[32m        self.extract_settings()[m
+[32m+[m[32m        self.settings.save()[m
+[32m+[m[32m        self.view.root.destroy()[m
+[32m+[m[41m        [m
+[32m+[m[32m    def apply_settings(self):[m
+[32m+[m[32m        for setting, value in self.settings.settings_dict.items():[m
+[32m+[m[32m            if setting not in self.corresponding_params:[m
+[32m+[m[32m                continue[m
+[32m+[m[32m            self.corresponding_params[setting].set(value)[m
+[32m+[m[41m    [m
+[32m+[m[32m    def extract_settings(self):[m
+[32m+[m[32m        for setting, field in self.corresponding_params.items():[m
+[32m+[m[32m            self.settings.settings_dict[setting] = field.get()[m
+ [m
+     def run(self):[m
+         self.view.mainloop()[m
+[36m@@ -266,10 +298,13 @@[m [mclass MSPApp:[m
+         """[m
+         # Update View[m
+         self.view.update_state('IP - Processing Images')[m
+[32m+[m[32m        # Get Threaded State[m
+[32m+[m[32m        threaded = self.view.image_tab.threading_enabled == 1[m
+         # Create and initialize the thread for image loading/processing[m
+         pross_thread = threading.Thread(target=analysis.imageprocess.process_main,[m
+                                         args=(self.data,[m
+[31m-                                              self),[m
+[32m+[m[32m                                              self,[m
+[32m+[m[32m                                              threaded),[m
+                                         daemon=True)[m
+         pross_thread.start()[m
+ [m
+[36m@@ -333,25 +368,11 @@[m [mclass MSPApp:[m
+ [m
+     def unpack_params_from_data(self):[m
+         loaded_data = deepcopy(self.data.__dict__)[m
+[31m-        loaded_data['animal_start'] = 0[m
+[31m-        loaded_data['animal_end'] = 100[m
+[31m-        if loaded_data['img_date_range'] is not None:[m
+[31m-            loaded_data['date_start'] = loaded_data['img_date_range'][0][m
+[31m-            loaded_data['date_end'] = loaded_data['img_date_range'][1][m
+[31m-        corresponding_params = {'target_directory': self.view.image_tab.topdirectory,[m
+[31m-                                'date_start': self.view.image_tab.date_start,[m
+[31m-                                'date_end': self.view.image_tab.date_end,[m
+[31m-                                'animal_prefix': self.view.image_tab.ani_prefix,[m
+[31m-                                'animal_start': self.view.image_tab.ani_start,[m
+[31m-                                'animal_end': self.view.image_tab.ani_end,[m
+[31m-                                'img_prefix': self.view.image_param_tab.img_prefix,[m
+[31m-                                'img_per_trial_per_channel': self.view.image_param_tab.img_per_trial_per_channel,[m
+[31m-                                'num_interpolated_channels': self.view.image_param_tab.num_interpolated_channels,[m
+[31m-                                }[m
+[31m-        for key, param in corresponding_params.items():[m
+[31m-            if key in loaded_data.keys():[m
+[31m-                if loaded_data[key] is not None:[m
+[31m-                    param.set(loaded_data[key])[m
+[32m+[m[32m        for key, value in loaded_data.items():[m
+[32m+[m[32m            if key not in self.corresponding_params:[m
+[32m+[m[32m                continue[m
+[32m+[m[32m            self.settings.settings_dict[key] = value[m
+[32m+[m[32m        self.apply_settings()[m
+ [m
+     def reset_regression(self):[m
+         """[m
+[1mdiff --git a/README.md b/README.md[m
+[1mindex b7f7a37..6500977 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -7,7 +7,8 @@[m [mThis application also allows for performance of signal regression steps to produ[m
+ Specifications and guides to the hardware are provided in **docs**, and a basic script for arduino for camera and laser control is provided in **hardwarecontrol**.[m
+ [m
+ ## Deployment[m
+[31m-This code can be run either using the provided conda enviroment or using the executable release (generated with pyinstaller). You may generate your own binary using the pyinstaller command below.[m
+[32m+[m[32mThis code can be run either using the provided conda enviroment or using the executable release (generated with pyinstaller). You may generate your own executable using the pyinstaller command below.[m
+ ```[m
+[31m-pyinstaller --onefile --hidden-import=scipy.io MSPhotomApp.py[m
+[32m+[m[32mpyinstaller start.spec[m
+ ```[m
+[32m+[m[32mIt is NOT recommended to run the MSPhotom application from within a jupyter notebook or Spyder, as asynchronous image loading will be disabled to prevent conflict with the jupyter/spyder eventloop[m
+[1mdiff --git a/enviroment.yaml b/enviroment.yaml[m
+[1mindex 4f1e60d..686d48e 100644[m
+[1m--- a/enviroment.yaml[m
+[1m+++ b/enviroment.yaml[m
+[36m@@ -4,12 +4,14 @@[m [mchannels:[m
+   - anaconda[m
+   - defaults[m
+ dependencies:[m
+[32m+[m[32m  - asyncio[m
+[32m+[m[32m  - nest_asyncio[m
+   - matplotlib[m
+   - numpy[m
+   - pillow[m
+   - pyinstaller[m
+   - python=3.11[m
+   - scipy[m
+[31m-  - spyder-kernels>=2.5[m
+[32m+[m[32m  - spyder-kernels=2.5[m
+   - h5py[m
+   - opencv[m

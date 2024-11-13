@@ -15,6 +15,7 @@ from matplotlib import pyplot as pp
 import tkinter as tk
 from MSPhotom.data import MSPData, DataManager
 from MSPhotom.gui.main import AppView
+from MSPhotom.settings import Settings
 from MSPhotom import analysis
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -32,6 +33,7 @@ class MSPApp:
         None.
 
         """
+        self.settings = Settings()
         self.view = AppView()
         self.data = MSPData()
 
@@ -70,6 +72,36 @@ class MSPApp:
 
         self.refresh_data_view()
         self.view.update_state('IP - Parameter Entry')
+        
+        self.corresponding_params = {'target_directory': self.view.image_tab.topdirectory,
+                                'date_start': self.view.image_tab.date_start,
+                                'date_end': self.view.image_tab.date_end,
+                                'animal_prefix': self.view.image_tab.ani_prefix,
+                                'animal_start': self.view.image_tab.ani_start,
+                                'animal_end': self.view.image_tab.ani_end,
+                                'img_prefix': self.view.image_param_tab.img_prefix,
+                                'img_per_trial_per_channel': self.view.image_param_tab.img_per_trial_per_channel,
+                                'num_interpolated_channels': self.view.image_param_tab.num_interpolated_channels,
+                                } | {f'ROI_{ind}' : field 
+                                     for ind, field in enumerate(self.view.image_param_tab.roi_names)}
+        self.apply_settings()
+        
+        self.view.root.protocol("WM_DELETE_WINDOW", self.on_close)
+    
+    def on_close(self):
+        self.extract_settings()
+        self.settings.save()
+        self.view.root.destroy()
+        
+    def apply_settings(self):
+        for setting, value in self.settings.settings_dict.items():
+            if setting not in self.corresponding_params:
+                continue
+            self.corresponding_params[setting].set(value)
+    
+    def extract_settings(self):
+        for setting, field in self.corresponding_params.items():
+            self.settings.settings_dict[setting] = field.get()
 
     def run(self):
         self.view.mainloop()
@@ -266,10 +298,13 @@ class MSPApp:
         """
         # Update View
         self.view.update_state('IP - Processing Images')
+        # Get Threaded State
+        threaded = self.view.image_tab.threading_enabled == 1
         # Create and initialize the thread for image loading/processing
         pross_thread = threading.Thread(target=analysis.imageprocess.process_main,
                                         args=(self.data,
-                                              self),
+                                              self,
+                                              threaded),
                                         daemon=True)
         pross_thread.start()
 
@@ -333,25 +368,11 @@ class MSPApp:
 
     def unpack_params_from_data(self):
         loaded_data = deepcopy(self.data.__dict__)
-        loaded_data['animal_start'] = 0
-        loaded_data['animal_end'] = 100
-        if loaded_data['img_date_range'] is not None:
-            loaded_data['date_start'] = loaded_data['img_date_range'][0]
-            loaded_data['date_end'] = loaded_data['img_date_range'][1]
-        corresponding_params = {'target_directory': self.view.image_tab.topdirectory,
-                                'date_start': self.view.image_tab.date_start,
-                                'date_end': self.view.image_tab.date_end,
-                                'animal_prefix': self.view.image_tab.ani_prefix,
-                                'animal_start': self.view.image_tab.ani_start,
-                                'animal_end': self.view.image_tab.ani_end,
-                                'img_prefix': self.view.image_param_tab.img_prefix,
-                                'img_per_trial_per_channel': self.view.image_param_tab.img_per_trial_per_channel,
-                                'num_interpolated_channels': self.view.image_param_tab.num_interpolated_channels,
-                                }
-        for key, param in corresponding_params.items():
-            if key in loaded_data.keys():
-                if loaded_data[key] is not None:
-                    param.set(loaded_data[key])
+        for key, value in loaded_data.items():
+            if key not in self.corresponding_params:
+                continue
+            self.settings.settings_dict[key] = value
+        self.apply_settings()
 
     def reset_regression(self):
         """

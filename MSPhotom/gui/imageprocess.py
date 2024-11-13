@@ -60,10 +60,10 @@ class ImageProcessTab(tk.Frame):
         #Integer Variables and defaults
         self.threading_enabled = tk.IntVar()
         
-        self.threading_enabled.set(0)
+        self.threading_enabled.set(1)
         
         #Checkbox and Numerical Entry
-        tk.Checkbutton(buttoncanvas, text = 'Enable Threading\n(EXPERIMENTAL)', variable=self.threading_enabled).grid(column = 0, row = 3, padx=(10,0), pady=(0,10), sticky="w")
+        tk.Checkbutton(buttoncanvas, text = 'Enable High Performance\n(EXPERIMENTAL)', variable=self.threading_enabled).grid(column = 0, row = 3, padx=(10,0), pady=(0,10), sticky="w")
         
         #Static Labels
         tk.Label(self, text="Dataset Folder Path", anchor="w",width=20).grid(column=0, row=0, padx=10, pady=(10,0))

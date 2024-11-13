@@ -9,11 +9,14 @@ import numpy as np
 from PIL import Image
 import time
 import asyncio
+import nest_asyncio
 from concurrent.futures import ThreadPoolExecutor
+
+nest_asyncio.apply()
 
 def process_main(data,
                  controller=None,
-                 threading = False):
+                 threaded = False):
     # STEP 1: Generate all the mask arrays for each region from the dataset info.
     # Each mask is a boolean numpy array with the selected region as "True" and all else as "False"
     fiber_coords_xyr = [(sum(coord[0:3:2])/2, # X coordinate
@@ -37,10 +40,11 @@ def process_main(data,
         valid_imgs = get_valid_images(run_path, data.img_prefix)
         if len(valid_imgs) == 0:
             continue
-        if not threading:
+        if not threaded:
             traces_raw = process_run(valid_imgs, fiber_masks, controller)
         else:
-            traces_raw = process_run_async(valid_imgs, fiber_masks, controller)
+            print(f'Attempting aysynchronous processing of {run_path}')
+            traces_raw = process_run_async_wrapper(valid_imgs, fiber_masks, controller)
         traces_raw_by_run_reg[run_path] = (traces_raw)
         # STEP 1: REMOVE BACKGROUND
         traces = subtractbackgroundsignal(traces_raw)
@@ -78,7 +82,8 @@ def process_main(data,
         controller.view.image_tab.shortprogstat.set('All Images Processed')
         controller.view.image_tab.longprogstat.set('All Runs Processed')
 
-def process_run(valid_imgs, masks, controller = None, threading = False):
+
+def process_run(valid_imgs, masks, controller = None, update_interval = 3):
     start_time = time.time()
     traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks]
     max_img = len(valid_imgs)
@@ -88,34 +93,43 @@ def process_run(valid_imgs, masks, controller = None, threading = False):
             img_PIL = Image.open(img_nm)
             img_np = np.array(img_PIL)
         except:
-            print('Failed to load {img_nm}, trace value was skipped')
+            print(f'Failed to load {img_nm}, trace value was skipped')
             continue
         for trace, mask in zip(traces_raw, masks):
             trace[ind] = img_np[mask].mean()
-        if controller is not None:
+        if controller is not None and ind % update_interval == 0:
             controller.view.image_tab.runprog['value'] = (ind/max_img)*100
             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')
             controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')
+    if controller is not None:
+        controller.view.image_tab.runprog['value'] = 100
+        controller.view.image_tab.shortprogstat.set('Processing Complete')
+        speed = max_img / (time.time() - start_time)
+        controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')
     return traces_raw
 
-async def process_run_async(valid_imgs, masks, controller = None, threading = False):
+
+async def process_run_async(valid_imgs, masks, controller=None, update_interval = 111):
     start_time = time.time()
     traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks]
     max_img = len(valid_imgs)
-    async def load_extract_image(img_nm, ind):
+
+    def load_extract_image(img_nm, ind):
         try:
             with Image.open(img_nm) as img_PIL:
                 img_np = np.array(img_PIL)
             for trace, mask in zip(traces_raw, masks):
                 trace[ind] = img_np[mask].mean()
-        except:
-            print(f'Failed to load {img_nm}, trace value was skipped')
-        if controller is not None:
-            controller.view.image_tab.runprog['value'] = (ind/max_img)*100
+        except Exception as e:
+            print(f'Failed to load {img_nm}, trace value was skipped. Error: {e}')
+        
+        if controller is not None and ind % update_interval == 0:
+            controller.view.image_tab.runprog['value'] = (ind / max_img) * 100
             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')
-            controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')
-    
-    loop = asyncio.get_event_loop()
+            speed = ind / (time.time() - start_time)
+            controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')
+
+    loop = asyncio.get_running_loop()
     with ThreadPoolExecutor() as executor:
         tasks = [
             loop.run_in_executor(executor, load_extract_image, img_nm, ind)
@@ -123,7 +137,23 @@ async def process_run_async(valid_imgs, masks, controller = None, threading = Fa
         ]
         await asyncio.gather(*tasks)
     
+    if controller is not None:
+        controller.view.image_tab.runprog['value'] = 100
+        controller.view.image_tab.shortprogstat.set('Processing Complete')
+        speed = max_img / (time.time() - start_time)
+        controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')
     return traces_raw
+
+
+def process_run_async_wrapper(valid_imgs, masks, controller=None):
+    try:
+        # Runs async function in a temporary event loop and closes it after completion
+        return asyncio.run(process_run_async(valid_imgs, masks, controller))
+    except RuntimeError as e:
+        print("Error in running async wrapper:", e)
+        # Optionally: Fallback to process_run if async processing fails
+        return process_run(valid_imgs, masks, controller, 111)
+
 
 def get_valid_images(path, prefix):
     img_paths = os.listdir(path)
@@ -138,22 +168,23 @@ def get_valid_images(path, prefix):
     img_paths = sorted(img_paths, key = lambda imgnm : int(re.sub('[^0-9]','',imgnm[prefix_len+1:-4])))
     return [f'{path}/{name}' for name in img_paths]
 
-def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius : int):
+
+def npy_circlemask(sizex: int, sizey: int, circlex: int, circley: int, radius: int):
     """
     Creates a numpy mask array with a circle region. Is used for masking image 
     files to pull only the selected fiber region.
 
     Parameters
     ----------
-    sizex : in
+    sizex : int
         DESCRIPTION.
-    sizey : TYPE
+    sizey : int
         DESCRIPTION.
-    circlex : TYPE
+    circlex : int
         DESCRIPTION.
-    circley : TYPE
+    circley : int
         DESCRIPTION.
-    radius : TYPE
+    radius : int
         DESCRIPTION.
 
     Returns
@@ -162,14 +193,15 @@ def npy_circlemask(sizex : int, sizey : int,circlex : int,circley : int,radius :
         Array of bool values to be used a mask over a specific circular region.
 
     """
-    mask = np.empty((sizex,sizey), dtype="bool_")
+    mask = np.empty((sizex, sizey), dtype="bool_")
     for x in range(sizex):
         for y in range(sizey):
             if ((x-circlex)**2 + (y-circley)**2)**(0.5) <= radius:
-                mask[y,x] = 1
+                mask[y, x] = 1
             else:
-                mask[y,x] = 0
+                mask[y, x] = 0
     return mask
+
 
 def subtractbackgroundsignal(traces : List[np.ndarray]): 
     """
@@ -194,6 +226,7 @@ def subtractbackgroundsignal(traces : List[np.ndarray]):
         subtrace.append(np.subtract(traces[i],traces[0]))
     return subtrace
 
+
 def splittraces(traces,channels) -> List[np.ndarray]:
     """
     Split traces data into individual channels.
@@ -215,6 +248,7 @@ def splittraces(traces,channels) -> List[np.ndarray]:
     for i in range(len(traces)):
         for j in range(channels): splittraces.append(traces[i][j::channels])
     return splittraces
+
 
 def reshapetraces(traces,imgptrial):
     """
@@ -240,6 +274,7 @@ def reshapetraces(traces,imgptrial):
         x = traces[i][0:(trials*imgptrial)]
         reshapedtraces.append(np.reshape(x,(trials,imgptrial)))
     return reshapedtraces
+
 
 def loadimg(path):
     """
