@@ -182,6 +182,7 @@ class MSPApp:
                             for path in run_paths]
 
         animal_names = list(set([path.split('/')[-1] for path in run_paths]))
+        animal_names = list(set([name.split(' Run')[0].strip() for name in animal_names]))
 
         # Update View
         self.view.updatefiletreedisplay(filetree_entries)
@@ -191,6 +192,10 @@ class MSPApp:
         self.data.target_directory: str = target_directory
         self.data.img_date_range: Tuple[str, str] = (date_start.get(),
                                                      date_end.get())
+        self.data.date_start = date_start.get()
+        self.data.date_end = date_end.get()
+        self.animal_start = str(ani_start)
+        self.animal_end = str(ani_end)
         self.data.animal_names: List[str] = animal_names
         self.data.animal_basename: str = ani_prefix
         self.data.run_path_list: List[str] = run_paths
