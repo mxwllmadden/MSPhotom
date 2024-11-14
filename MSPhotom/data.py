@@ -69,13 +69,15 @@ class DataManager:
 
     def save(self, file):
         with open(file, 'wb') as f:
-            pickle.dump(self.data, f)
+            pickle.dump(self.data.__dict__, f)
         return
 
     def load(self, file):
         with open(file, 'rb') as f:
-            return pickle.load(f)
-        return
+            data_dict = pickle.load(f)
+        if isinstance(data_dict, MSPData):
+            return data_dict
+        return MSPData(**data_dict)
 
     def saveto_h5(self, path):
         """

@@ -41,9 +41,10 @@ def process_main(data,
         if len(valid_imgs) == 0:
             continue
         if not threaded:
+            print(f'Performing synchronous processing of {run_path}')
             traces_raw = process_run(valid_imgs, fiber_masks, controller)
         else:
-            print(f'Attempting aysynchronous processing of {run_path}')
+            print(f'Attempting asynchronous processing of {run_path}')
             traces_raw = process_run_async_wrapper(valid_imgs, fiber_masks, controller)
         traces_raw_by_run_reg[run_path] = (traces_raw)
         # STEP 1: REMOVE BACKGROUND
@@ -74,6 +75,7 @@ def process_main(data,
     runs_names = "\n    ".join([f'{run_path.split("/")[-2]}/{run_path.split("/")[-1]}' 
                             for run_path in data.run_path_list])
     data.log('imageprocess finished processing: \n    {runs_names}')
+    print('imageprocess completed')
 
     if controller is not None:
         controller.view.update_state('RG - Processing Done Ready to Input Bin')
@@ -123,7 +125,6 @@ async def process_run_async(valid_imgs, masks, controller=None, update_interval 
                 trace[ind] = img_np[mask].mean()
         except Exception as e:
             print(f'Failed to load {img_nm}, trace value was skipped. Error: {e}')
-        
         if controller is not None and ind % update_interval == 0:
             controller.view.image_tab.runprog['value'] = (ind / max_img) * 100
             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')
@@ -152,6 +153,9 @@ def process_run_async_wrapper(valid_imgs, masks, controller=None):
         return asyncio.run(process_run_async(valid_imgs, masks, controller))
     except RuntimeError as e:
         print("Error in running async wrapper:", e)
+        print("Defaulting to synchronous processing...")
+        print(""""If you notice this, you are probobly running MSPhotom app inside Spyder or Jupityr notebooks.
+              This is NOT RECOMMENDED. Please close the program and run the app via command line or pyinstaller executable""")
         # Optionally: Fallback to process_run if async processing fails
         return process_run(valid_imgs, masks, controller, 111)
 

@@ -301,7 +301,6 @@ class MSPApp:
         self.view.update_state('IP - Processing Images')
         # Get Threaded State
         threaded = self.view.image_tab.threading_enabled.get() == 1
-        tk.messagebox.showinfo('threaded',str(threaded))
         # Create and initialize the thread for image loading/processing
         pross_thread = threading.Thread(target=analysis.imageprocess.process_main,
                                         args=(self.data,
@@ -382,6 +381,8 @@ class MSPApp:
         loaded_data = deepcopy(self.data.__dict__)
         for key, value in loaded_data.items():
             if key not in self.corresponding_params:
+                continue
+            if value is None:
                 continue
             self.settings.settings_dict[key] = value
         self.apply_settings()
