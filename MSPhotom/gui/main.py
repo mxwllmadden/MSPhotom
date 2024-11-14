@@ -54,14 +54,20 @@ class AppView:
                 [
                     self.image_tab.regselbutton,
                     self.image_tab.processbutton,
-                    self.image_tab.reset_button
+                    self.image_tab.reset_button,
+                    self.image_tab.threading_checkbox,
+                    self.image_tab.autosave_checkbox
                 ],
-            'IP - Processing Images': [],
-            'RG - Processing Done Ready to Input Bin' : [
+            'IP - Processing Images': 
+                [
+                    self.image_tab.autosave_checkbox
+                ],
+            'RG - Processing Done Ready to Input Bin' : 
+                [
                     self.regression_tab.binsizeentry,
                     self.regression_tab.load_button,
                     self.regression_tab.reset_button
-            ],
+                ],
             'RG - Ready to Regress' :
                 [
                     self.regression_tab.regress_button,
@@ -120,9 +126,9 @@ class AppView:
             raise TypeError(
                 f'Attempted to set state to {new_state}, which does not exist')
         for child in self.statesets[self.state]:
-            child.config(state = 'disabled')
+            child.config(state = tk.DISABLED)
         for child in self.statesets[new_state]:
-            child.config(state = 'normal')
+            child.config(state = tk.NORMAL)
         self.state = new_state
 
     def popout_regsel(self, reg_names, img):

@@ -59,11 +59,16 @@ class ImageProcessTab(tk.Frame):
         
         #Integer Variables and defaults
         self.threading_enabled = tk.IntVar()
+        self.autosave_enabled = tk.IntVar()
         
         self.threading_enabled.set(1)
+        self.autosave_enabled.set(1)
         
         #Checkbox and Numerical Entry
-        tk.Checkbutton(buttoncanvas, text = 'Enable High Performance\n(EXPERIMENTAL)', variable=self.threading_enabled).grid(column = 0, row = 3, padx=(10,0), pady=(0,10), sticky="w")
+        self.threading_checkbox = tk.Checkbutton(buttoncanvas, text = 'Enable High Speed\n(EXPERIMENTAL)', variable=self.threading_enabled)
+        self.threading_checkbox.grid(column = 0, row = 3, padx=(0,0), pady=(0,10), sticky="e")
+        self.autosave_checkbox = tk.Checkbutton(buttoncanvas, text = 'Enable Autosave', variable=self.autosave_enabled)
+        self.autosave_checkbox.grid(column = 0, row = 4, padx=(10,0), pady=(0,10), sticky="e")
         
         #Static Labels
         tk.Label(self, text="Dataset Folder Path", anchor="w",width=20).grid(column=0, row=0, padx=10, pady=(10,0))

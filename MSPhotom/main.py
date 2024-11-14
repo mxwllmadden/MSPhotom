@@ -15,12 +15,13 @@ from matplotlib import pyplot as pp
 import tkinter as tk
 from MSPhotom.data import MSPData, DataManager
 from MSPhotom.gui.main import AppView
-from MSPhotom.settings import Settings
+from MSPhotom.settings import Settings, get_settings_directory
 from MSPhotom import analysis
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
 from copy import deepcopy
+from datetime import datetime
 
 
 class MSPApp:
@@ -299,7 +300,8 @@ class MSPApp:
         # Update View
         self.view.update_state('IP - Processing Images')
         # Get Threaded State
-        threaded = self.view.image_tab.threading_enabled == 1
+        threaded = self.view.image_tab.threading_enabled.get() == 1
+        tk.messagebox.showinfo('threaded',str(threaded))
         # Create and initialize the thread for image loading/processing
         pross_thread = threading.Thread(target=analysis.imageprocess.process_main,
                                         args=(self.data,
@@ -307,6 +309,16 @@ class MSPApp:
                                               threaded),
                                         daemon=True)
         pross_thread.start()
+        
+    def autosave_data(self):
+        if self.view.image_tab.autosave_enabled.get() == 0:
+            return
+        manage = DataManager(self.data)
+        autosave_path = (get_settings_directory() + '\\' + 
+                         datetime.now().strftime("%Y-%m-%d_%H-%M") + '.pkl')
+        manage.save(autosave_path)
+        tk.messagebox.showinfo('Data Autosave',
+                               f'Data was autosaved to {autosave_path}')
 
     def reset_data(self):
         """

@@ -81,6 +81,7 @@ def process_main(data,
         controller.view.image_tab.runprog['value'] = 100
         controller.view.image_tab.shortprogstat.set('All Images Processed')
         controller.view.image_tab.longprogstat.set('All Runs Processed')
+        controller.autosave_data()
 
 
 def process_run(valid_imgs, masks, controller = None, update_interval = 3):
