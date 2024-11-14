@@ -103,6 +103,8 @@ def process_run(valid_imgs, masks, controller = None, update_interval = 3):
         if controller is not None and ind % update_interval == 0:
             controller.view.image_tab.runprog['value'] = (ind/max_img)*100
             controller.view.image_tab.shortprogstat.set(f'{img_nm.split("/")[-1]}')
+            if (time.time()-start_time) == 0:
+                continue
             controller.view.image_tab.speedout.set(f'{round(ind/(time.time()-start_time),1)} images/second')
     if controller is not None:
         controller.view.image_tab.runprog['value'] = 100
