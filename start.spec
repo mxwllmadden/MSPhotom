@@ -32,7 +32,7 @@ a = Analysis(
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
 exe = EXE(
-    pyz,X
+    pyz,
     a.scripts,
     a.binaries,
     a.zipfiles,
