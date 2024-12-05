@@ -40,6 +40,7 @@ class MSPData:
     fiber_masks: Dict[str, np.ndarray] = None
     traces_raw_by_run_reg: Dict[str, Dict[str, np.ndarray]] = None
     traces_by_run_signal_trial: Dict[str, Dict[str, np.ndarray]] = None
+    source_image_modification_times_by_run : Dict[str, np.ndarray] = None
     
     # Regression
     regression_bin_size: int = None

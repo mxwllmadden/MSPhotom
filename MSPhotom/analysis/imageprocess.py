@@ -28,6 +28,7 @@ def process_main(data,
     
     traces_raw_by_run_reg = {}
     traces_by_run_signal_trial = {}
+    image_mod_times_by_run = {}
     run_path_list_len = len(data.run_path_list)
     # Pull from images
     for ind, run_path in enumerate(data.run_path_list):
@@ -42,11 +43,12 @@ def process_main(data,
             continue
         if not threaded:
             print(f'Performing synchronous processing of {run_path}')
-            traces_raw = process_run(valid_imgs, fiber_masks, controller)
+            traces_raw, image_mod_times = process_run(valid_imgs, fiber_masks, controller)
         else:
             print(f'Attempting asynchronous processing of {run_path}')
-            traces_raw = process_run_async_wrapper(valid_imgs, fiber_masks, controller)
-        traces_raw_by_run_reg[run_path] = (traces_raw)
+            traces_raw, image_mod_times = process_run_async_wrapper(valid_imgs, fiber_masks, controller)
+        traces_raw_by_run_reg[run_path] = traces_raw
+        image_mod_times_by_run[run_path] = image_mod_times
         # STEP 1: REMOVE BACKGROUND
         traces = subtractbackgroundsignal(traces_raw)
         # STEP 2: SPLIT TRACES BY CHANNEL
@@ -72,6 +74,7 @@ def process_main(data,
                         in zip(data.fiber_labels, fiber_masks)}
     data.traces_raw_by_run_reg = traces_raw_by_run_reg
     data.traces_by_run_signal_trial = traces_by_run_signal_trial
+    data.source_image_modification_times_by_run = image_mod_times_by_run
     runs_names = "\n    ".join([f'{run_path.split("/")[-2]}/{run_path.split("/")[-1]}' 
                             for run_path in data.run_path_list])
     data.log('imageprocess finished processing: \n    {runs_names}')
@@ -89,10 +92,12 @@ def process_main(data,
 def process_run(valid_imgs, masks, controller = None, update_interval = 3):
     start_time = time.time()
     traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks]
+    image_mod_times = np.full(len(valid_imgs), np.nan)
     max_img = len(valid_imgs)
     # Iterate through all images
     for ind, img_nm in enumerate(valid_imgs):
         try:
+            image_mod_times[ind] = os.path.getmtime(img_nm)
             img_PIL = Image.open(img_nm)
             img_np = np.array(img_PIL)
         except:
@@ -111,16 +116,18 @@ def process_run(valid_imgs, masks, controller = None, update_interval = 3):
         controller.view.image_tab.shortprogstat.set('Processing Complete')
         speed = max_img / (time.time() - start_time)
         controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')
-    return traces_raw
+    return traces_raw, image_mod_times
 
 
 async def process_run_async(valid_imgs, masks, controller=None, update_interval = 111):
     start_time = time.time()
     traces_raw = [np.full(len(valid_imgs), np.nan) for _ in masks]
     max_img = len(valid_imgs)
+    image_mod_times = np.full(len(valid_imgs), np.nan)
 
     def load_extract_image(img_nm, ind):
         try:
+            image_mod_times[ind] = os.path.getmtime(img_nm)
             with Image.open(img_nm) as img_PIL:
                 img_np = np.array(img_PIL)
             for trace, mask in zip(traces_raw, masks):
