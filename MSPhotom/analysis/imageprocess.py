@@ -153,7 +153,7 @@ async def process_run_async(valid_imgs, masks, controller=None, update_interval 
         controller.view.image_tab.shortprogstat.set('Processing Complete')
         speed = max_img / (time.time() - start_time)
         controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')
-    return traces_raw
+    return traces_raw, image_mod_times
 
 
 def process_run_async_wrapper(valid_imgs, masks, controller=None):
