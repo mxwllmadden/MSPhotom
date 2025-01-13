@@ -94,12 +94,15 @@ def evaluate(data,
     # This should be a dictionary of runs, then regions
     runs = data['traces_raw_by_run_reg']
     for run_name, traces in runs.items():
+        if run_name in ignored_runs:
+            continue 
         errors = []
         tlengs = []
         m_sigs = []
         for ind, trace in enumerate(traces):
             # Check the length of the trace
             t_leng = len(trace)
+            tlengs.append(t_leng)
             if t_leng not in expected_image_count and len(expected_image_count) > 0:
                 errors.append(f'Expected {" or ".join(str(x) for x in expected_image_count)} but instead got {t_leng}')
             # Prepare the tbool array.
@@ -121,6 +124,10 @@ def evaluate(data,
             errors.append('WARNING!!!!! Extreme low signal intensity, consider excluding data')
         if not all(x == tlengs[0] for x in tlengs):
             errors.append('WARNING!!!!! Different traces have different lengths, you should never see this message and it means that something horribly wrong has occurred')
+        # Check and see if there are any errors
+        if len(errors) == 0:
+            continue
+    
         # Check for temporal discontinuities
         filetimes = data['source_image_modification_times_by_run'][run_name]
         dft = np.diff(filetimes)
@@ -130,9 +137,7 @@ def evaluate(data,
         dft_outliers = dft > dft_thresh
         if dft_outliers.sum() not in expected_trial_number and len(expected_trial_number) > 0:
             errors.append('Temporal discontinuities detected')
-        # Check and see if there are any errors
-        if len(errors) == 0:
-            continue
+  
         # Report errors and graph
         print(*errors,sep = '\n')
         print('-----TEMPORAL DISCONTINUITIES----')
@@ -147,10 +152,9 @@ def evaluate(data,
             print([x * expected_trial_length_samples
                    for x in range(1,max(expected_trial_number)+1)],
                   sep = '\n')
-        for trace in traces:
-            plt.plot(trace[0::2])
-            plt.plot(trace[1::2])
+        _plot_traces(traces, dft)
         print(f'CURRENT RUN: {run_name}')
+        print(f'Trace lengths: {tlengs}')
         return
     print('ALL CHECKS PASSED!!! DATA IS GOOD, SAVE TO NEW FILE!!')
     
@@ -170,7 +174,10 @@ def _plot_traces(traces, dft):
          plt.legend(loc='upper right')
          plt.grid(True)
          plt.show()
-    
+         
+    plt.plot(dft)
+    plt.show()
+   
 if __name__ == '__main__':
     data = load('K:/2025-01-13_11-22.pkl')
     evaluate(data, 600, expected_trial_number = [20])
