@@ -8,38 +8,70 @@ import pickle
 import numpy as np
 from matplotlib import pyplot as plt
 from MSPhotom.analysis.imageprocess import subtractbackgroundsignal,\
-    splittraces, reshapetraces, 
+    splittraces, reshapetraces
+from MSPhotom.analysis.regression import regression_main 
+from dataclasses import dataclass
 
 def load(datafile):
     with open(datafile,'rb') as file:
         data = pickle.load(file)
     return data
 
-def save_and_reanalyze(datafile, data):
-    # STEP 1: REMOVE BACKGROUND
-    traces = subtractbackgroundsignal(data[])
-    # STEP 2: SPLIT TRACES BY CHANNEL
-    traces = splittraces(traces, data['num_interpolated_channels'])
-    # STEP 3: RESHAPE TRACES ACCORDING TO TRIALS
-    traces = reshapetraces(traces, data['img_per_trial_per_channel'])
-
-    fiber_labels = data['fiber_labels'][1:]
-    fiber_labels[0] = 'corrsig'
+def save_and_regress(datafile, data, bin_size=1000):
+    raw_fixed_traces = data['traces_raw_by_run_reg']
+    traces_by_run_signal_trial = {}
+    for run_path, traces in raw_fixed_traces.items():
+        # STEP 1: REMOVE BACKGROUND
+        traces = subtractbackgroundsignal(traces)
+        # STEP 2: SPLIT TRACES BY CHANNEL
+        traces = splittraces(traces, data['num_interpolated_channels'])
+        # STEP 3: RESHAPE TRACES ACCORDING TO TRIALS
+        traces = reshapetraces(traces, data['img_per_trial_per_channel'])
     
-    trace_labels = [f'sig_{label}_ch{ch}'
-                    for label in fiber_labels
-                    for ch in range(data['num_interpolated_channels'])]
-                    
-    for label in fiber_labels:
-        for ch in range(data['num_interpolated_channels']):
-            trace_labels.append(f'sig_{label}_ch{ch}')
-    
-    traces_by_run_signal_trial[run_path] = {label : trace for label, trace 
-                                       in zip(trace_labels, traces)}
+        fiber_labels = data['fiber_labels'][1:]
+        fiber_labels[0] = 'corrsig'
+        
+        trace_labels = [f'sig_{label}_ch{ch}'
+                        for label in fiber_labels
+                        for ch in range(data['num_interpolated_channels'])]
+                        
+        for label in fiber_labels:
+            for ch in range(data['num_interpolated_channels']):
+                trace_labels.append(f'sig_{label}_ch{ch}')
 
-data['traces_by_run_signal_trial'] = traces_by_run_signal_trial
+        traces_by_run_signal_trial[run_path] = {label : trace for label, trace 
+                                           in zip(trace_labels, traces)}
+    data['traces_by_run_signal_trial'] = traces_by_run_signal_trial
+    
+    @dataclass
+    class MSPDataDummy:
+        traces_by_run_signal_trial : any = None
+        bin_size : int = None
+        regressed_traces_by_run_signal_trial = None
+        corrsig_reg_results = None
+        
+    data_obj = MSPDataDummy(traces_by_run_signal_trial=data['traces_by_run_signal_trial'],
+                            bin_size=bin_size)
+    regression_main(data_obj)
+    data['regressed_traces_by_run_signal_trial'] = data_obj.regressed_traces_by_run_signal_trial
+    
     with open(datafile,'wb') as file:
-        data = pickle.dump(data, file)
+        pickle.dump(data, file)
+    print('saved!')
+        
+def swap(traces):
+    for ind, trace in enumerate(traces):
+        temp = trace[::2].copy()
+        trace[::2] = trace[1::2]
+        trace[1::2] = temp
+
+def wipe(traces, span):
+    for trace in traces:
+        trace[span[0]:span[1]] = np.nan
+
+def insert(traces, num, ind):
+    for i, trace in enumerate(traces):
+        traces[i] = np.insert(trace, ind, [np.nan] * num)
 
 def evaluate(data,
              expected_trial_length_samples : int = 600,
@@ -122,6 +154,24 @@ def evaluate(data,
         return
     print('ALL CHECKS PASSED!!! DATA IS GOOD, SAVE TO NEW FILE!!')
     
+def _plot_traces(traces, dft):
+    plt.figure(figsize=(12, 6))
+    
+    for idx, trace in enumerate(traces):
+        # Plot blue (even indices)
+         plt.plot(trace[::2], color='blue', label='Blue Signal' if idx == 0 else "", alpha=0.7)
+
+         # Plot violet (odd indices) 
+         plt.plot(trace[1::2], color='violet', label='Violet Signal' if idx == 0 else "", alpha=0.7)
+         
+         plt.title(f"Trace {idx}", fontsize=14)
+         plt.xlabel("Time (samples)", fontsize=12)
+         plt.ylabel("Signal Amplitude", fontsize=12)
+         plt.legend(loc='upper right')
+         plt.grid(True)
+         plt.show()
+    
 if __name__ == '__main__':
     data = load('K:/2025-01-13_11-22.pkl')
     evaluate(data, 600, expected_trial_number = [20])
+    save_and_regress('K:\\filetest.pkl', data)
