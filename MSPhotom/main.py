@@ -31,7 +31,7 @@ class MSPApp:
 
         Returns
         -------
-        None.
+        MSPApp Object.
 
         """
         self.settings = Settings()
@@ -90,6 +90,9 @@ class MSPApp:
         self.view.root.protocol("WM_DELETE_WINDOW", self.on_close)
     
     def on_close(self):
+        """
+        Saves settings on closing
+        """
         self.extract_settings()
         self.settings.save()
         self.view.root.destroy()
@@ -105,6 +108,9 @@ class MSPApp:
             self.settings.settings_dict[setting] = field.get()
 
     def run(self):
+        """
+        Alias for the view (tkinter object) mainloop.
+        """
         self.view.mainloop()
 
     def get_image_directory(self):
@@ -254,7 +260,7 @@ class MSPApp:
 
     def region_selection_prematureclose(self, event):
         """
-        Reset view state if window is closed prematurely.
+        Reset view state if region selection window is closed prematurely.
         """
         if event.widget == event.widget.winfo_toplevel():
             self.view.update_state('IP - Create Fiber Masks')
