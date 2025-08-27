@@ -114,8 +114,13 @@ def process_run(valid_imgs, masks, controller = None, update_interval = 3):
     if controller is not None:
         controller.view.image_tab.runprog['value'] = 100
         controller.view.image_tab.shortprogstat.set('Processing Complete')
-        speed = max_img / (time.time() - start_time)
-        controller.view.image_tab.speedout.set(f'{round(speed, 1)} images/second')
+        elapsed = time.time() - start_time
+        if elapsed > 0:
+            speed = max_img / (time.time() - start_time)
+            speed = round(speed, 1)
+        else:
+            speed = 'NaN'
+        controller.view.image_tab.speedout.set(f'{speed} images/second')
     return traces_raw, image_mod_times
 
 

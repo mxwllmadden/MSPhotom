@@ -324,8 +324,9 @@ class MSPApp:
         if self.view.image_tab.autosave_enabled.get() == 0:
             return
         manage = DataManager(self.data)
-        autosave_path = (get_settings_directory() + '\\' + 
-                         datetime.now().strftime("%Y-%m-%d_%H-%M") + '.pkl')
+        timecode = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        autosave_path = os.path.join(self.data.target_directory,
+                                     f'{timecode}.pkl')
         manage.save(autosave_path)
         tk.messagebox.showinfo('Data Autosave',
                                f'Data was autosaved to {autosave_path}')
